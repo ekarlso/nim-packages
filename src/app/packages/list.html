@@ -1,0 +1,12 @@
+  <table class="table">
+    <tr>
+      <th>ID</th>
+      <th>Name</th>
+      <th>Description</th>
+    </tr>
+    <tr ng-repeat="pkg in packages">
+      <td>{{pkg.id}}</td>
+      <td><a ui-sref="packages.detail({pkgId: pkg.id})">{{pkg.name}}</a></td>
+      <td>{{pkg.description}}</td>
+    </tr>
+  </table>

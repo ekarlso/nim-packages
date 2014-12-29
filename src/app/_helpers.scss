@@ -1,0 +1,25 @@
+@mixin display-flex {
+    display: -ms-flexbox;      /* TWEENER - IE 10 */
+    display: -webkit-flex;     /* NEW - Chrome */
+    display: flex;             /* NEW, Spec - Opera 12.1, Firefox 20+ */
+}
+
+@mixin flex-direction($which) {
+    -webkit-flex-direction: $which;
+    flex-direction: $which;
+}
+
+@mixin flex-grow($amt) {
+    -webkit-flex-grow: $amt;
+    flex-grow: $amt;
+}
+
+@mixin flex-wrap($how) {
+    -webkit-flex-wrap: $how;
+    flex-wrap: $how;
+}
+
+@mixin flex($stuff) {
+    -webkit-flex: $stuff;
+    flex: $stuff;
+}
