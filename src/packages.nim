@@ -1,4 +1,4 @@
-import asyncdispatch, jester, json, marshal, db_mysql, strutils
+import asyncdispatch, jester, json, marshal, db_sqlite, strutils
 
 type
     Release = object
@@ -18,32 +18,32 @@ type
 
 
 proc connect(): TDBConn =
-    return db_mysql.open("localhost:3306", "nim_pkg", "nim_pkg", "nim_pkg")
+    return db_sqlite.open("packages.sqlite", "nim_pkg", "nim_pkg", "nim_pkg")
 
 
 
 proc getPackageTags(conn: TDBConn, id: int64): seq[string] =
     var tags = newSeq[string]()
 
-    let q = db_mysql.sql("SELECT value FROM tags WHERE pkg_id = ?")
-    for r in db_mysql.rows(conn, q, id):
+    let q = db_sqlite.sql("SELECT value FROM tags WHERE pkg_id = ?")
+    for r in db_sqlite.rows(conn, q, id):
         tags.add($r[0])
     return tags
 
 
 proc setPackageTags(conn: TDBConn, pkg: Package): int {.discardable.} =
-    let q = db_mysql.sql("INSERT INTO tags (pkg_id, value) VALUES (?, ?)")
+    let q = db_sqlite.sql("INSERT INTO tags (pkg_id, value) VALUES (?, ?)")
 
     for t in pkg.tags:
-        let id = db_mysql.insertId(conn, q, pkg.id, t)
+        let id = db_sqlite.insertId(conn, q, pkg.id, t)
         echo($id)
 
 
 proc getPackageReleases(conn: TDBConn, id: int64): seq[Release] =
     var rels = newSeq[Release]()
 
-    let q = db_mysql.sql("SELECT id, pkg_id, version, method, uri FROM releases")
-    for r in db_mysql.rows(conn, q, id):
+    let q = db_sqlite.sql("SELECT id, pkg_id, version, method, uri FROM releases")
+    for r in db_sqlite.rows(conn, q, id):
         let release = Release(
             version: $r[2],
             uri: $r[3],
@@ -63,9 +63,9 @@ proc populatePackageData(conn: TDBConn, pkg: var Package): Package {.discardable
 
 
 proc createPackage(conn: TDBConn, pkg: var Package): Package =
-    let query = db_mysql.sql("INSERT INTO packages (name, description, license, web, maintainer) VALUES (?, ?, ?, ?, ?)")
+    let query = db_sqlite.sql("INSERT INTO packages (name, description, license, web, maintainer) VALUES (?, ?, ?, ?, ?)")
 
-    let id = db_mysql.insertId(conn, query, pkg.name, pkg.description, pkg.license, pkg.web, pkg.maintainer)
+    let id = db_sqlite.insertId(conn, query, pkg.name, pkg.description, pkg.license, pkg.web, pkg.maintainer)
     pkg.id = id
 
     setPackageTags(conn, pkg)
@@ -75,9 +75,9 @@ proc createPackage(conn: TDBConn, pkg: var Package): Package =
 proc getPackages(conn: TDBConn): seq[Package] =
     var pkgs = newSeq[Package]()
 
-    let query = db_mysql.sql("SELECT id, name, description, license, web, maintainer FROM packages")
+    let query = db_sqlite.sql("SELECT id, name, description, license, web, maintainer FROM packages")
 
-    for r in db_mysql.rows(conn, query):
+    for r in db_sqlite.rows(conn, query):
         var pkg = Package(
             id: parseInt($r[0]),
             name: $r[1],
@@ -100,9 +100,9 @@ proc getPackages(conn: TDBConn): seq[Package] =
 
 
 proc getPackage(conn: TDBConn, pkgId: int): Package =
-    let query = db_mysql.sql("SELECT id, name, description, license, web, maintainer FROM packages WHERE id = ?")
+    let query = db_sqlite.sql("SELECT id, name, description, license, web, maintainer FROM packages WHERE id = ?")
 
-    let r = db_mysql.getRow(conn, query, pkgId)
+    let r = db_sqlite.getRow(conn, query, pkgId)
 
     echo ("FOO")
 
