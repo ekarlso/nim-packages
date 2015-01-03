@@ -8,7 +8,7 @@ import PackageDetailCtrl from './packages/detail.controller';
 import PackageVersionCtrl from './packages/version.controller';
 import NavbarCtrl from '../components/navbar/navbar.controller';
 
-angular.module('nimPackages', ['ngAnimate', 'ngCookies', 'ngTouch', 'ngSanitize', 'ngResource', 'ui.router', 'ui.bootstrap'])
+angular.module('nimPackages', ['ui.router', 'ui.bootstrap'])
   .controller('MainCtrl', MainCtrl)
   .controller('NavbarCtrl', NavbarCtrl)
   .controller('PackageCtrl', PackageCtrl)
