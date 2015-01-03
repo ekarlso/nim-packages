@@ -6,6 +6,10 @@ It consists of two parts, a API and a one page app built in angularjs.
 
 # API
 
+## Bootstrap Database
+
+sqlite packages.sqlite < schema.sql
+
 ## Install
 
 To install the nimble app run the following:
@@ -15,6 +19,12 @@ nimble install -y
 ```
 
 ## Running the app
+
+Run the compiled app
+
+```
+./src/packages
+```
 
 You can also run the app by just using *nim*.
 
