@@ -1,4 +1,4 @@
-import asyncdispatch, jester, json, marshal, db_sqlite, strutils
+import asyncdispatch, jester, json, marshal, db_sqlite, strutils, os
 
 type
     Release = object
@@ -191,9 +191,11 @@ proc packageToObject(pkg: Package): JsonNode =
     return o
 
 
+var db = connect()
+var settings = newSettings(staticDir = getCurrentDir())
+
 routes:
     get "/packages":
-        var db = connect()
 
         let pkgs = getPackages(db)
 
@@ -205,21 +207,15 @@ routes:
 
         resp($pkg_array, "application/json")
 
-        db.close()
 
     get "/packages/@pkgId":
-        var db = connect()
-
         let pkg = getPackage(db, parseInt(@"pkgId"))
 
         let obj = packageToObject(pkg)
         resp($obj, "application/json")
 
-        db.close()
 
     post "/packages":
-        var db = connect()
-
         var body = parseJson($request.body)
         var pkg = bodyToPackage(body)
 
@@ -227,7 +223,5 @@ routes:
 
         let obj = packageToObject(created)
         resp($obj, "application/json")
-
-        db.close()
 
 runForever()
