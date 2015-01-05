@@ -21,7 +21,7 @@ CREATE TABLE releases (
 );
 
 CREATE TABLE tags (
-    pkg_id INTEGER PRIMARY KEY AUTOINCREMENT
+    pkg_id INTEGER
                    NOT NULL,
     value  TEXT    NOT NULL,
     FOREIGN KEY ( pkg_id )

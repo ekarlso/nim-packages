@@ -1,5 +1,7 @@
 import asyncdispatch, jester, json, marshal, db_sqlite, strutils, os
 
+from asynchttpserver import Http404
+
 type
     Release = object
         version: string
@@ -16,10 +18,18 @@ type
         tags: seq[string]
         releases: seq[Release]
 
+    HttpException = object of Exception
+        code: HttpCode
+
+
+template newHttpExc*(httpCode: HttpCode, message: string): expr =
+    var e = newException(HTTPException, message)
+    e.code = httpCode
+    e
+
 
 proc connect(): TDBConn =
     return db_sqlite.open("packages.sqlite", "nim_pkg", "nim_pkg", "nim_pkg")
-
 
 
 proc getPackageTags(conn: TDBConn, id: int64): seq[string] =
@@ -36,7 +46,6 @@ proc setPackageTags(conn: TDBConn, pkg: Package): int {.discardable.} =
 
     for t in pkg.tags:
         let id = db_sqlite.insertId(conn, q, pkg.id, t)
-        echo($id)
 
 
 proc getPackageReleases(conn: TDBConn, id: int64): seq[Release] =
@@ -50,22 +59,19 @@ proc getPackageReleases(conn: TDBConn, id: int64): seq[Release] =
             downMethod: $r[4]
         )
         rels.add(release)
+
     return rels
-
-
-proc populatePackageData(conn: TDBConn, pkg: var Package): Package {.discardable.} =
-    let tags = getPackageTags(conn, pkg.id)
-    pkg.tags = tags
-
-    let rels = getPackageReleases(conn, pkg.id)
-    pkg.releases = rels
-    return pkg
 
 
 proc createPackage(conn: TDBConn, pkg: var Package): Package =
     let query = db_sqlite.sql("INSERT INTO packages (name, description, license, web, maintainer) VALUES (?, ?, ?, ?, ?)")
 
-    let id = db_sqlite.insertId(conn, query, pkg.name, pkg.description, pkg.license, pkg.web, pkg.maintainer)
+    # FIXME(ekarlso): Remove once https://github.com/Araq/Nim/issues/1866 is fixed.
+    var description: string = pkg.description
+    if description == nil:
+        description = ""
+
+    let id = db_sqlite.insertId(conn, query, pkg.name, description, pkg.license, pkg.web, pkg.maintainer)
     pkg.id = id
 
     setPackageTags(conn, pkg)
@@ -104,8 +110,6 @@ proc getPackage(conn: TDBConn, pkgId: int): Package =
 
     let r = db_sqlite.getRow(conn, query, pkgId)
 
-    echo ("FOO")
-
     var pkg = Package(
         id: parseInt($r[0]),
         name: $r[1],
@@ -117,11 +121,22 @@ proc getPackage(conn: TDBConn, pkgId: int): Package =
     if $r[2] != nil:
         pkg.description = $r[2]
 
-    populatePackageData(conn, pkg)
+    let tags = getPackageTags(conn, pkg.id)
+    pkg.tags = tags
+
+    let rels = getPackageReleases(conn, pkg.id)
+    pkg.releases = rels
+
     return pkg
 
 
 proc bodyToPackage(j): Package =
+    for i in @["name", "license", "web", "maintainer"]:
+        if not j.hasKey(i):
+            let msg = "Missing key '$#'" % i
+            echo($msg)
+            raise newHttpExc(Http400, msg)
+
     var pkg = Package(
         name: j["name"].str,
         license: j["license"].str,
@@ -131,6 +146,8 @@ proc bodyToPackage(j): Package =
 
     if j.hasKey("description"):
         pkg.description = j["description"].str
+    else:
+        pkg.description = nil
 
     var tags = newSeq[string]()
     if j.hasKey("tags"):
@@ -196,7 +213,6 @@ var settings = newSettings(staticDir = getCurrentDir())
 
 routes:
     get "/packages":
-
         let pkgs = getPackages(db)
 
         var pkg_array = newJArray()
@@ -217,11 +233,34 @@ routes:
 
     post "/packages":
         var body = parseJson($request.body)
-        var pkg = bodyToPackage(body)
 
-        let created = createPackage(db, pkg)
+        var pkg: Package
+        let headers = {"content-type": "application/json"}
 
-        let obj = packageToObject(created)
-        resp($obj, "application/json")
+        var errorCode: HttpCode = Http500
+        var errorMsg: string
+
+        try:
+            pkg = bodyToPackage(body)
+            pkg = createPackage(db, pkg)
+        except HTTPException:
+            let e = (ref HTTPException)(getCurrentException())
+            errorCode = e.code
+            errorMsg = e.msg
+        except Exception:
+            errorMsg = "Internal error happened, contact admins!"
+            echo("ERROR" & getCurrentExceptionMsg())
+
+        if errorMsg != nil:
+            let c = $errorCode
+            let data = %{
+                "message": %errorMsg,
+                "code": %c
+            }
+            halt(errorCode, headers, $data)
+
+
+        let obj = packageToObject(pkg)
+        resp(Http201, headers, $obj)
 
 runForever()
