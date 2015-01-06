@@ -1,11 +1,13 @@
 CREATE TABLE packages (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT
-                        NOT NULL,
-    name        TEXT    NOT NULL,
+    id          INTEGER         PRIMARY KEY AUTOINCREMENT
+                                NOT NULL,
+    license     VARCHAR(50)     NOT NULL,
+    name        VARCHAR(100)    NOT NULL,
     description TEXT,
-    license     TEXT    NOT NULL,
-    web         TEXT    NOT NULL,
-    maintainer  TEXT    NOT NULL
+    web         TEXT            NOT NULL,
+    maintainer  TEXT            NOT NULL,
+    FOREIGN KEY ( license )
+        REFERENCES licenses ( name )
 );
 
 CREATE TABLE releases (
@@ -30,8 +32,7 @@ CREATE TABLE tags (
 );
 
 CREATE TABLE licenses (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT
-                            NOT NULL,
-    name            VARCHAR(100) NOT NULL,
-    description     TEXT
+    name            VARCHAR(50) NOT NULL PRIMARY KEY,
+    description     TEXT,
+    active          BOOLEAN DEFAULT 0
 );

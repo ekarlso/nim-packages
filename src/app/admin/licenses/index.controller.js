@@ -18,7 +18,7 @@ class LicenseIndexCtrl {
 
     $scope.deleteSelection = function() {
         angular.forEach($scope.selection, function(v, i) {
-            $http.post('/licenses/' + v.id + '/delete').success(function() {
+            $http.post('/licenses/' + v.name + '/delete').success(function() {
                 $scope.licenses.splice(i, 1);
             });
         });

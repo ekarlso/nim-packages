@@ -1,4 +1,4 @@
-import asyncdispatch, jester, json, marshal, db_sqlite, strutils, os
+import asyncdispatch, jester, json, marshal, db_sqlite, strutils, os, re
 
 from asynchttpserver import Http404
 
@@ -12,14 +12,13 @@ type
         id: int64
         name: string
         description: string
-        license: string
         web: string
         maintainer: string
+        license: string
         tags: seq[string]
         releases: seq[Release]
 
     License = object
-        id: int64
         name: string
         description: string
 
@@ -33,6 +32,20 @@ template newHttpExc*(httpCode: HttpCode, message: string): expr =
     e
 
 
+proc checkKeys(j: JsonNode, keys: varargs[string]) =
+    for i in keys:
+        if not j.hasKey(i):
+            let msg = "Missing key '$#'" % i
+            raise newHttpExc(Http400, msg)
+
+
+proc isValidPackageName(name: string) =
+    echo ("Checking " & $name)
+    if name =~ re".*\@.*":
+        let msg = "'@' is not allowed in package name."
+        raise newHttpExc(Http400, msg)
+
+
 proc connect(): TDBConn =
     return db_sqlite.open("packages.sqlite", "nim_pkg", "nim_pkg", "nim_pkg")
 
@@ -40,17 +53,31 @@ proc connect(): TDBConn =
 proc getLicenses(conn: TDBConn): seq[License] =
     var licenses = newSeq[License]()
 
-    let q = db_sqlite.sql("SELECT id, name, description FROM licenses")
+    let q = db_sqlite.sql("SELECT name, description FROM licenses")
     for r in db_sqlite.rows(conn, q):
         var license = License(
-            id: parseInt($r[0]),
-            name: $r[1]
+            name: $r[0]
         )
-        if $r[2] != nil:
-            license.description = $r[2]
+        if $r[1] != nil:
+            license.description = $r[1]
         licenses.add(license)
 
     return licenses
+
+
+proc getLicense(conn: TDBConn, name: string): License =
+    let query = db_sqlite.sql("SELECT name, description FROM licenses WHERE name = ?")
+
+    let r = db_sqlite.getRow(conn, query, name)
+
+    var license = License(
+        name: $r[0],
+    )
+
+    if $r[1] != nil:
+        license.description = $r[1]
+
+    return license
 
 
 proc createLicense(conn: TDBConn, license: var License): License =
@@ -62,13 +89,12 @@ proc createLicense(conn: TDBConn, license: var License): License =
         description = ""
 
     let id = db_sqlite.tryInsertId(conn, q, license.name, description)
-    license.id = id
     return license
 
 
-proc deleteLicense(conn: TDBConn, licenseId: int64): int64 =
-    let q = db_sqlite.sql("DELETE FROM licenses WHERE id = ?")
-    return db_sqlite.execAffectedRows(conn, q, licenseId)
+proc deleteLicense(conn: TDBConn, name: string): int64 =
+    let q = db_sqlite.sql("DELETE FROM licenses WHERE name = ?")
+    return db_sqlite.execAffectedRows(conn, q, name)
 
 
 proc getPackageTags(conn: TDBConn, id: int64): seq[string] =
@@ -80,11 +106,11 @@ proc getPackageTags(conn: TDBConn, id: int64): seq[string] =
     return tags
 
 
-proc setPackageTags(conn: TDBConn, pkg: Package): int {.discardable.} =
+proc setPackageTags(conn: TDBConn, pkg: Package) =
     let q = db_sqlite.sql("INSERT INTO tags (pkg_id, value) VALUES (?, ?)")
 
     for t in pkg.tags:
-        let id = db_sqlite.insertId(conn, q, pkg.id, t)
+        discard db_sqlite.insertId(conn, q, pkg.id, t)
 
 
 proc getPackageReleases(conn: TDBConn, id: int64): seq[Release] =
@@ -169,14 +195,9 @@ proc getPackage(conn: TDBConn, pkgId: int): Package =
     return pkg
 
 
-proc checkKeys(j: JsonNode, keys: varargs[string]) =
-    for i in keys:
-        if not j.hasKey(i):
-            let msg = "Missing key '$#'" % i
-            raise newHttpExc(Http400, msg)
-
 proc bodyToPackage(j): Package =
     checkKeys(j, "name", "license", "web", "maintainer")
+    isValidPackageName(j["name"].str)
 
     var pkg = Package(
         name: j["name"].str,
@@ -265,12 +286,18 @@ proc bodyToLicense(j: JsonNode): License =
 
 proc licenseToJObject(l: License): JsonNode =
     var o = newJObject()
-    o["id"] = %l.id
     o["name"] = %l.name
+
+    if l.description != nil:
+        o["description"] = %l.description
+    else:
+        o["description"] = newJNull()
+
     return o
 
 
 var db = connect()
+db_sqlite.exec(db, db_sqlite.sql("PRAGMA foreign_keys = ON;"))
 var settings = newSettings(staticDir = getCurrentDir())
 
 routes:
@@ -314,8 +341,8 @@ routes:
         let obj = licenseToJObject(license)
         resp(Http201, headers, $obj)
 
-    post "/licenses/@licenseId/delete":
-        let rows = deleteLicense(db, parseInt(@"licenseId"))
+    post "/licenses/@licenseName/delete":
+        let rows = deleteLicense(db, @"licenseName")
 
         let headers = {"content-type": "application/json"}
         if rows == 0:

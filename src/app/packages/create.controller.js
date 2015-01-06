@@ -9,7 +9,6 @@ class CreatePackageCtrl {
 
     $scope.pkg = {
         maintainer: 'example@foo.io',
-        license: 'MIT'
     };
 
     $scope.submit = function() {
