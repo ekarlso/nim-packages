@@ -64,6 +64,10 @@ $main-color: #383838;
   border-left: 2px solid;
 }
 
+.controls {
+  margin-bottom: 10px;
+}
+
 // injector
 @import '_helpers.scss';
 // endinjector

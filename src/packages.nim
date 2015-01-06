@@ -18,6 +18,11 @@ type
         tags: seq[string]
         releases: seq[Release]
 
+    License = object
+        id: int64
+        name: string
+        description: string
+
     HttpException = object of Exception
         code: HttpCode
 
@@ -30,6 +35,40 @@ template newHttpExc*(httpCode: HttpCode, message: string): expr =
 
 proc connect(): TDBConn =
     return db_sqlite.open("packages.sqlite", "nim_pkg", "nim_pkg", "nim_pkg")
+
+
+proc getLicenses(conn: TDBConn): seq[License] =
+    var licenses = newSeq[License]()
+
+    let q = db_sqlite.sql("SELECT id, name, description FROM licenses")
+    for r in db_sqlite.rows(conn, q):
+        var license = License(
+            id: parseInt($r[0]),
+            name: $r[1]
+        )
+        if $r[2] != nil:
+            license.description = $r[2]
+        licenses.add(license)
+
+    return licenses
+
+
+proc createLicense(conn: TDBConn, license: var License): License =
+    let q = db_sqlite.sql("INSERT INTO licenses (name, description) VALUES(?, ?)")
+
+    # FIXME(ekarlso): Remove once https://github.com/Araq/Nim/issues/1866 is fixed.
+    var description: string = license.description
+    if description == nil:
+        description = ""
+
+    let id = db_sqlite.tryInsertId(conn, q, license.name, description)
+    license.id = id
+    return license
+
+
+proc deleteLicense(conn: TDBConn, licenseId: int64): int64 =
+    let q = db_sqlite.sql("DELETE FROM licenses WHERE id = ?")
+    return db_sqlite.execAffectedRows(conn, q, licenseId)
 
 
 proc getPackageTags(conn: TDBConn, id: int64): seq[string] =
@@ -130,12 +169,14 @@ proc getPackage(conn: TDBConn, pkgId: int): Package =
     return pkg
 
 
-proc bodyToPackage(j): Package =
-    for i in @["name", "license", "web", "maintainer"]:
+proc checkKeys(j: JsonNode, keys: varargs[string]) =
+    for i in keys:
         if not j.hasKey(i):
             let msg = "Missing key '$#'" % i
-            echo($msg)
             raise newHttpExc(Http400, msg)
+
+proc bodyToPackage(j): Package =
+    checkKeys(j, "name", "license", "web", "maintainer")
 
     var pkg = Package(
         name: j["name"].str,
@@ -208,10 +249,79 @@ proc packageToObject(pkg: Package): JsonNode =
     return o
 
 
+proc bodyToLicense(j: JsonNode): License =
+    checkKeys(j, "name")
+
+    var license = License(
+        name: $j["name"].str
+    )
+
+    if j.hasKey("description"):
+        license.description = j["description"].str
+    else:
+        license.description = nil
+    return license
+
+
+proc licenseToJObject(l: License): JsonNode =
+    var o = newJObject()
+    o["id"] = %l.id
+    o["name"] = %l.name
+    return o
+
+
 var db = connect()
 var settings = newSettings(staticDir = getCurrentDir())
 
 routes:
+    get "/licenses":
+        let lics = getLicenses(db)
+
+        var jarray = newJArray()
+        for i in lics:
+            let obj = licenseToJObject(i)
+            jarray.add(obj)
+        resp($jarray, "application/json")
+
+    post "/licenses":
+        var body = parseJson($request.body)
+
+        var license: License
+        let headers = {"content-type": "application/json"}
+
+        var errorCode: HttpCode = Http500
+        var errorMsg: string
+
+        try:
+            license = bodyToLicense(body)
+            license = createLicense(db, license)
+        except HTTPException:
+            let e = (ref HTTPException)(getCurrentException())
+            errorCode = e.code
+            errorMsg = e.msg
+        except Exception:
+            errorMsg = "Internal error happened, contact admins!"
+            echo("ERROR" & getCurrentExceptionMsg())
+
+        if errorMsg != nil:
+            let c = $errorCode
+            let data = %{
+                "message": %errorMsg,
+                "code": %c
+            }
+            halt(errorCode, headers, $data)
+
+        let obj = licenseToJObject(license)
+        resp(Http201, headers, $obj)
+
+    post "/licenses/@licenseId/delete":
+        let rows = deleteLicense(db, parseInt(@"licenseId"))
+
+        let headers = {"content-type": "application/json"}
+        if rows == 0:
+            halt(Http404, headers, "")
+        resp(Http200, "")
+
     get "/packages":
         let pkgs = getPackages(db)
 
@@ -223,13 +333,11 @@ routes:
 
         resp($pkg_array, "application/json")
 
-
     get "/packages/@pkgId":
         let pkg = getPackage(db, parseInt(@"pkgId"))
 
         let obj = packageToObject(pkg)
         resp($obj, "application/json")
-
 
     post "/packages":
         var body = parseJson($request.body)

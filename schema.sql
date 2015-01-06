@@ -28,3 +28,10 @@ CREATE TABLE tags (
         REFERENCES packages ( id )
         ON DELETE CASCADE
 );
+
+CREATE TABLE licenses (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT
+                            NOT NULL,
+    name            VARCHAR(100) NOT NULL,
+    description     TEXT
+);

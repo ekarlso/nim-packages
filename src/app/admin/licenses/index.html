@@ -1,0 +1,21 @@
+
+<h1>Licenses</h1>
+
+<div class="controls">
+  <a class="btn btn-success btn-xs" ui-sref="admin.licenses.create"><span class="glyphicon glyphicon-plus"></span></a>
+  <button class="btn btn-danger btn-xs" ng-click="deleteSelection()"><span class="glyphicon glyphicon-minus"></span></button>
+</div>
+
+<table class="table">
+  <tr>
+    <th>Name</th>
+    <th>Description</th>
+  </tr>
+  <tr ng-repeat="license in licenses">
+    <td>
+        <input type="checkbox" id="license.name" value="license.id" ng-checked="selection.indexOf(license.name) > -1" ng-click="toggleSelection($index, license)">
+        {{license.name}}
+    </td>
+    <td>{{license.description}}</td>
+  </tr>
+</table>

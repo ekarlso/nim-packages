@@ -1,3 +1,4 @@
+<h1>Create Package</h1>
 <form>
   <div class="form-group">
     <label for="name">Package name</label>
@@ -11,7 +12,9 @@
 
   <div class="form-group">
     <label for="license">License</label>
-    <input type="text" class="form-control" id="license" placeholder="License" ng-model="pkg.license">
+    <select id="license" class="selectpicker form-control" data-live-search="true" title="Please select a License">
+      <option ng-repeat="license in licenses" id="{{license.id}}">{{license.name}}</option>
+    </select>
   </div>
 
   <div class="form-group">
@@ -20,8 +23,8 @@
   </div>
 
   <div class="form-group">
-    <label for="web">Web page</label>
-    <input type="text" class="form-control" id="web" placeholder="Home webpage of the package" ng-model="pkg.web">
+    <label for="webpage">Web page</label>
+    <input type="text" class="form-control" placeholder="Home webpage of the package" ng-model="pkg.web" aria-describedby="webpage">
   </div>
 
   <button type="submit" class="btn btn-default" ng-click="submit()">Submit</button>
