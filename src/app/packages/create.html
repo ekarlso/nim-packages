@@ -12,7 +12,7 @@
 
   <div class="form-group">
     <label for="license">License</label>
-    <select id="license" class="selectpicker form-control" data-live-search="true" title="Please select a License">
+    <select id="license" class="selectpicker form-control" data-live-search="true" title="Please select a License" ng-model="pkg.license">
       <option ng-repeat="license in licenses" id="{{license.id}}">{{license.name}}</option>
     </select>
   </div>
