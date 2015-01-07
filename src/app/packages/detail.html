@@ -41,6 +41,12 @@
         <h3>License</h3>
         <p>{{pkg.license}}</p>
       </div>
+
+      <div ng-show="pkg.tags">
+        <h3>Tags</h3>
+        <span ng-repeat="tag in pkg.tags">{{tag}}</span>
+      </div>
+
       <div>
         <h3>Owners</h3>
         <ul class="owners">

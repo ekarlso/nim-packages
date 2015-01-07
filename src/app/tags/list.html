@@ -1,0 +1,7 @@
+<h1>Tags</h1>
+
+<div class="row" ng-repeat="tag in tags">
+  <div class="col-md-6">
+    <a ui-sref="tags.packages({tagName: tag})">{{tag}}</a>
+  </div>
+</div>

@@ -22,17 +22,27 @@ CREATE TABLE releases (
         ON DELETE CASCADE
 );
 
-CREATE TABLE tags (
-    pkg_id INTEGER
-                   NOT NULL,
-    value  TEXT    NOT NULL,
+CREATE TABLE packages_tags (
+    pkg_id INTEGER NOT NULL,
+    tag_id INTEGER NOT NULL,
     FOREIGN KEY ( pkg_id )
         REFERENCES packages ( id )
         ON DELETE CASCADE
 );
 
+CREATE TABLE tags (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT
+                    NOT NULL,
+    name            VARCHAR(50)
+                    NOT NULL
+);
+
 CREATE TABLE licenses (
-    name            VARCHAR(50) NOT NULL PRIMARY KEY,
+    id              INTEGER PRIMARY KEY AUTOINCREMENT
+                    NOT NULL,
+    name            VARCHAR(50),
     description     TEXT,
     active          BOOLEAN DEFAULT 0
 );
+
+CREATE UNIQUE INDEX license_name ON licenses (name);

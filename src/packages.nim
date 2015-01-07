@@ -1,4 +1,4 @@
-import asyncdispatch, jester, json, marshal, db_sqlite, strutils, os, re
+import asyncdispatch, hashes, future, jester, json, marshal, db_sqlite, sequtils, strutils, os, re, tables
 
 from asynchttpserver import Http404
 
@@ -22,8 +22,17 @@ type
         name: string
         description: string
 
+    Tag = object
+        id: int64
+        name: string
+
     HttpException = object of Exception
         code: HttpCode
+
+
+proc hash(x: Tag): THash =
+    result = x.name.hash
+    result = !$result
 
 
 template newHttpExc*(httpCode: HttpCode, message: string): expr =
@@ -49,6 +58,42 @@ proc isValidPackageName(name: string) =
 proc connect(): TDBConn =
     return db_sqlite.open("packages.sqlite", "nim_pkg", "nim_pkg", "nim_pkg")
 
+
+proc getTags(conn: TDBConn): seq[string] =
+    var tags = newSeq[string]()
+    let q = db_sqlite.sql("SELECT name FROM tags")
+    for r in db_sqlite.rows(conn, q):
+        tags.add($r[0])
+    return tags
+
+
+proc getTagsByPackage(conn: TDBConn, id: int64): seq[Tag] =
+    var tags = newSeq[Tag]()
+
+    let q = db_sqlite.sql("SELECT id, name FROM tags LEFT JOIN packages_tags ON tags.id = packages_tags.tag_id WHERE packages_tags.pkg_id = ?")
+    for r in db_sqlite.rows(conn, q, id):
+        let tag = Tag(
+            id: parseInt($r[0]),
+            name: $r[1]
+        )
+        tags.add(tag)
+    return tags
+
+
+proc getOrCreateTag(conn: TDBConn, name: string): Tag =
+    var tag: Tag
+
+    let q = db_sqlite.sql("SELECT id, name FROM tags WHERE name = ?")
+    let r = db_sqlite.getRow(conn, q, name)
+
+    # id will be "" if there's no row found
+    if r[0] == "":
+        let q = db_sqlite.sql("INSERT INTO tags (name) VALUES(?)")
+        let id = db_sqlite.insertId(conn, q, name)
+        tag = Tag(name: name, id: id)
+    else:
+        tag = Tag(name: r[1], id: parseInt(r[0]))
+    return tag
 
 proc getLicenses(conn: TDBConn): seq[License] =
     var licenses = newSeq[License]()
@@ -88,7 +133,8 @@ proc createLicense(conn: TDBConn, license: var License): License =
     if description == nil:
         description = ""
 
-    let id = db_sqlite.tryInsertId(conn, q, license.name, description)
+    let id = db_sqlite.insertId(conn, q, license.name, description)
+
     return license
 
 
@@ -97,20 +143,21 @@ proc deleteLicense(conn: TDBConn, name: string): int64 =
     return db_sqlite.execAffectedRows(conn, q, name)
 
 
-proc getPackageTags(conn: TDBConn, id: int64): seq[string] =
-    var tags = newSeq[string]()
-
-    let q = db_sqlite.sql("SELECT value FROM tags WHERE pkg_id = ?")
-    for r in db_sqlite.rows(conn, q, id):
-        tags.add($r[0])
-    return tags
-
-
 proc setPackageTags(conn: TDBConn, pkg: Package) =
-    let q = db_sqlite.sql("INSERT INTO tags (pkg_id, value) VALUES (?, ?)")
+    # Set tags to whatever pkg.tags is.
 
-    for t in pkg.tags:
-        discard db_sqlite.insertId(conn, q, pkg.id, t)
+    let newTags = newTable[string, Tag](pkg.tags.map((s: string) => getOrCreateTag(conn, s)).map((t: Tag) => (t.name, t)))
+    let oldTags = newTable[string, Tag](getTagsByPackage(conn, pkg.id).map((t: Tag) => (t.name, t)))
+
+    # Create
+    for t in toSeq(newTags.values).filterIt(oldTags.hasKey(it.name) == false):
+        let q = sql("INSERT INTO packages_tags (pkg_id, tag_id) VALUES(?, ?)")
+        discard insertId(conn, q, pkg.id, t.id)
+
+    # Delete
+    for t in toSeq(oldTags.values).filterIt(newTags.hasKey(it.name) == false):
+        let q = sql("DELETE FROM packages_tags (pkg_id, tag_id) VALUES(?, ?)")
+        discard execAffectedRows(conn, q, pkg.id, t.id)
 
 
 proc getPackageReleases(conn: TDBConn, id: int64): seq[Release] =
@@ -160,8 +207,9 @@ proc getPackages(conn: TDBConn): seq[Package] =
         if $r[2] != nil:
             pkg.description = $r[2]
 
-        let tags = getPackageTags(conn, pkg.id)
-        pkg.tags = tags
+        pkg.tags = newSeq[string]()
+        for t in getTagsByPackage(conn, pkg.id):
+            pkg.tags.add(t.name)
 
         let rels = getPackageReleases(conn, pkg.id)
         pkg.releases = rels
@@ -186,8 +234,9 @@ proc getPackage(conn: TDBConn, pkgId: int): Package =
     if $r[2] != nil:
         pkg.description = $r[2]
 
-    let tags = getPackageTags(conn, pkg.id)
-    pkg.tags = tags
+    pkg.tags = newSeq[string]()
+    for t in getTagsByPackage(conn, pkg.id):
+        pkg.tags.add(t.name)
 
     let rels = getPackageReleases(conn, pkg.id)
     pkg.releases = rels
@@ -239,6 +288,13 @@ proc releaseToJObject(r: Release): JsonNode =
     o["method"] = %r.downMethod
     return o
 
+proc tagsToJson(tagSeq: seq[string]): JsonNode =
+    # Set the tags
+    var tags = newJArray()
+    for t in tagSeq:
+        tags.add(%t)
+    return tags
+
 
 proc packageToObject(pkg: Package): JsonNode =
     var o = newJObject()
@@ -255,11 +311,7 @@ proc packageToObject(pkg: Package): JsonNode =
     else:
         o["description"] = newJNull()
 
-    # Set the tags
-    var tags = newJArray()
-    for t in pkg.tags:
-        tags.add(%t)
-    o["tags"] = tags
+    o["tags"] = tagsToJson(pkg.tags)
 
     var releases = newJArray()
     for r in pkg.releases:
@@ -397,5 +449,10 @@ routes:
 
         let obj = packageToObject(pkg)
         resp(Http201, headers, $obj)
+
+    get "/tags":
+        let tags = getTags(db)
+        let jtags = tagsToJson(tags)
+        resp($jtags, "application/json")
 
 runForever()

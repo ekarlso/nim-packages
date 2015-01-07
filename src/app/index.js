@@ -9,6 +9,9 @@ import NavbarCtrl from '../components/navbar/navbar.controller';
 import CreateLicenseCtrl from './admin/licenses/create.controller';
 import LicenseIndexCtrl from './admin/licenses/index.controller';
 
+import TagsIndexCtrl from './tags/index.controller';
+import TagsPackagesCtrl from './tags/packages.controller';
+
 // Packages
 import PackageCtrl from './packages/packages.controller';
 import CreatePackageCtrl from './packages/create.controller';
@@ -28,16 +31,17 @@ angular.module('nimPackages', ['ui.router', 'ui.bootstrap'])
       })
 
       .state('packages', {
+        url: '/packages',
         abstract: true,
         templateUrl: 'app/packages/index.html'
       })
       .state('packages.detail', {
-        url: '/packages/:pkgId/detail',
+        url: '/:pkgId/detail',
         templateUrl: 'app/packages/detail.html',
         controller: PackageDetailCtrl
       })
       .state('packages.list', {
-        url: '/packages',
+        url: '/list',
         templateUrl: 'app/packages/list.html',
         controller: PackageCtrl
       })
@@ -54,6 +58,26 @@ angular.module('nimPackages', ['ui.router', 'ui.bootstrap'])
         url: '/packages/:pkgId/:pkgVersion',
         templateUrl: 'app/packages/version.html',
         controller: PackageVersionCtrl
+      })
+
+      .state('tags', {
+        url: '/tags',
+        templateUrl: 'app/tags/index.html',
+        abstract: true
+      })
+      .state('tags.list', {
+        url: '/list',
+        views: {
+          '': {
+            templateUrl: '/app/tags/list.html',
+            controller: TagsIndexCtrl
+          }
+        }
+      })
+      .state('tags.packages', {
+        url: '/:tagName/packages',
+        templateUrl: 'app/tags/packages.html',
+        controller: TagsPackagesCtrl
       })
 
       .state('admin', {
