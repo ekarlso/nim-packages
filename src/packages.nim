@@ -98,11 +98,11 @@ proc getTags(conn: TDBConn): seq[Tag] =
 proc getTagsByPackage(conn: TDBConn, id: int64): seq[Tag] =
     result = newSeq[Tag]()
 
-    let q = db_sqlite.sql("SELECT id, name FROM tags LEFT JOIN packages_tags ON tags.id = packages_tags.tag_id WHERE packages_tags.pkg_id = ?")
-    for r in db_sqlite.rows(conn, q, id):
+    let query = db_sqlite.sql("SELECT id, name FROM tags LEFT JOIN packages_tags ON tags.id = packages_tags.tag_id WHERE packages_tags.pkg_id = ?")
+    for row in db_sqlite.rows(conn, query, id):
         let tag = Tag(
-            id: parseInt($r[0]),
-            name: $r[1]
+            id: parseInt($row[0]),
+            name: $row[1]
         )
         result.add(tag)
 
@@ -110,62 +110,57 @@ proc getTagsByPackage(conn: TDBConn, id: int64): seq[Tag] =
 proc getOrCreateTag(conn: TDBConn, name: string): Tag =
     var tag: Tag
 
-    let q = db_sqlite.sql("SELECT id, name FROM tags WHERE name = ?")
-    let r = db_sqlite.getRow(conn, q, name)
+    let query = db_sqlite.sql("SELECT id, name FROM tags WHERE name = ?")
+    let row = db_sqlite.getRow(conn, query, name)
 
     # id will be "" if there's no row found
-    if r[0] == "":
-        let q = db_sqlite.sql("INSERT INTO tags (name) VALUES(?)")
-        let id = db_sqlite.insertId(conn, q, name)
+    if row[0] == "":
+        let query = db_sqlite.sql("INSERT INTO tags (name) VALUES(?)")
+        let id = db_sqlite.insertId(conn, query, name)
         tag = Tag(name: name, id: id)
     else:
-        tag = Tag(name: r[1], id: parseInt(r[0]))
+        tag = Tag(name: row[1], id: parseInt(row[0]))
     return tag
 
 
 proc getLicenses(conn: TDBConn): seq[License] =
     result = newSeq[License]()
 
-    let q = db_sqlite.sql("SELECT name, description FROM licenses")
-    for r in db_sqlite.rows(conn, q):
-        var l = License(
-            name: $r[0]
+    let query = db_sqlite.sql("SELECT name, description FROM licenses")
+    for row in db_sqlite.rows(conn, query):
+        var license = License(
+            name: $row[0]
         )
-        if $r[1] != nil:
-            l.description = $r[1]
-        result.add(l)
+        if $row[1] != nil:
+            license.description = $row[1]
+        result.add(license)
 
 
 proc getLicense(conn: TDBConn, name: string): License =
     let query = db_sqlite.sql("SELECT name, description FROM licenses WHERE name = ?")
 
-    let r = db_sqlite.getRow(conn, query, name)
+    let row = db_sqlite.getRow(conn, query, name)
 
     result = License(
-        name: $r[0],
+        name: $row[0],
     )
 
-    if $r[1] != nil:
-        result.description = $r[1]
+    if $row[1] != nil:
+        result.description = $row[1]
 
 
 proc createLicense(conn: TDBConn, license: var License): License =
-    let q = db_sqlite.sql("INSERT INTO licenses (name, description) VALUES(?, ?)")
+    let query = db_sqlite.sql("INSERT INTO licenses (name, description) VALUES(?, ?)")
 
-    # FIXME(ekarlso): Remove once https://github.com/Araq/Nim/issues/1866 is fixed.
-    var description: string = license.description
-    if description == nil:
-        description = ""
-
-    let id = db_sqlite.insertId(conn, q, license.name, description)
+    let id = db_sqlite.insertId(conn, query, license.name, license.description)
 
     result = license
     result.id = id
 
 
 proc deleteLicense(conn: TDBConn, name: string): int64 =
-    let q = db_sqlite.sql("DELETE FROM licenses WHERE name = ?")
-    return db_sqlite.execAffectedRows(conn, q, name)
+    let query = db_sqlite.sql("DELETE FROM licenses WHERE name = ?")
+    return db_sqlite.execAffectedRows(conn, query, name)
 
 
 proc setPackageTags(conn: TDBConn, pkg: Package) =
@@ -175,38 +170,36 @@ proc setPackageTags(conn: TDBConn, pkg: Package) =
     let oldTags = newTable[string, Tag](getTagsByPackage(conn, pkg.id).map((t: Tag) => (t.name, t)))
 
     # Create
-    for t in toSeq(newTags.values).filterIt(oldTags.hasKey(it.name) == false):
-        let q = sql("INSERT INTO packages_tags (pkg_id, tag_id) VALUES(?, ?)")
-        discard insertId(conn, q, pkg.id, t.id)
+    for tag in toSeq(newTags.values).filterIt(oldTags.hasKey(it.name) == false):
+        let query = sql("INSERT INTO packages_tags (pkg_id, tag_id) VALUES(?, ?)")
+        discard insertId(conn, query, pkg.id, tag.id)
 
     # Delete
-    for t in toSeq(oldTags.values).filterIt(newTags.hasKey(it.name) == false):
-        let q = sql("DELETE FROM packages_tags (pkg_id, tag_id) VALUES(?, ?)")
-        discard execAffectedRows(conn, q, pkg.id, t.id)
+    for tag in toSeq(oldTags.values).filterIt(newTags.hasKey(it.name) == false):
+        let query = sql("DELETE FROM packages_tags (pkg_id, tag_id) VALUES(?, ?)")
+        discard execAffectedRows(conn, query, pkg.id, tag.id)
 
 
 
 proc getPackageReleases(conn: TDBConn, id: int64): seq[Release] =
-    var rels = newSeq[Release]()
+    result = newSeq[Release]()
 
-    let q = db_sqlite.sql("SELECT id, pkg_id, version, method, uri FROM releases")
-    for r in db_sqlite.rows(conn, q, id):
+    let query = db_sqlite.sql("SELECT id, pkg_id, version, method, uri FROM releases")
+    for row in db_sqlite.rows(conn, query, id):
         let release = Release(
-            version: $r[2],
-            uri: $r[3],
-            downMethod: $r[4]
+            version: $row[2],
+            uri: $row[3],
+            downMethod: $row[4]
         )
-        rels.add(release)
-
-    return rels
+        result.add(release)
 
 
 proc populatePackageData(conn: TDBConn, pkg: var Package) =
     # Helper to populate additional package data.
     if pkg.tags == nil:
         pkg.tags = newSeq[string]()
-        for t in getTagsByPackage(conn, pkg.id):
-            pkg.tags.add(t.name)
+        for tag in getTagsByPackage(conn, pkg.id):
+            pkg.tags.add(tag.name)
 
     if pkg.releases != nil:
         let rels = getPackageReleases(conn, pkg.id)
@@ -225,44 +218,41 @@ proc createPackage(conn: TDBConn, pkg: var Package): Package =
 
 
 proc getPackages(conn: TDBConn): seq[Package] =
-    var pkgs = newSeq[Package]()
+    result = newSeq[Package]()
 
     let query = db_sqlite.sql("SELECT id, name, description, license, web, maintainer FROM packages")
 
-    for r in db_sqlite.rows(conn, query):
+    for row in db_sqlite.rows(conn, query):
         var pkg = Package(
-            id: parseInt($r[0]),
-            name: $r[1],
-            license: $r[3],
-            web: $r[4],
-            maintainer: $r[5],
+            id: parseInt($row[0]),
+            name: $row[1],
+            license: $row[3],
+            web: $row[4],
+            maintainer: $row[5],
         )
 
-        if $r[2] != nil:
-            pkg.description = $r[2]
+        if $row[2] != nil:
+            pkg.description = $row[2]
 
         populatePackageData(conn, pkg)
-        pkgs.add(pkg)
-    return pkgs
+        result.add(pkg)
 
 
 proc getPackage(conn: TDBConn, pkgId: int): Package =
     let query = db_sqlite.sql("SELECT id, name, description, license, web, maintainer FROM packages WHERE id = ?")
 
-    let r = db_sqlite.getRow(conn, query, pkgId)
+    let row = db_sqlite.getRow(conn, query, pkgId)
 
-    var pkg = Package(
-        id: parseInt($r[0]),
-        name: $r[1],
-        license: $r[3],
-        web: $r[4],
-        maintainer: $r[5],
+    result = Package(
+        id: parseInt($row[0]),
+        name: $row[1],
+        license: $row[3],
+        web: $row[4],
+        maintainer: $row[5],
     )
 
-    if $r[2] != nil:
-        pkg.description = $r[2]
-
-    return pkg
+    if $row[2] != nil:
+        result.description = $row[2]
 
 
 proc bodyToPackage(j): Package =
@@ -310,8 +300,8 @@ proc releaseToJson(r: Release): JsonNode =
 proc tagsToJson(tags: seq[Tag]): JsonNode =
     # Turn a seq of tags into a json array of tags
     result = newJArray()
-    for t in tags:
-        result.add(%t.name)
+    for tag in tags:
+        result.add(%tag.name)
 
 
 proc packageToJson(pkg: Package): JsonNode =
