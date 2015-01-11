@@ -198,7 +198,6 @@ proc populatePackageData(conn: TDBConn, pkg: var Package) =
     if pkg.tags == nil:
         pkg.tags = newSeq[string]()
         for t in getTagsByPackage(conn, pkg.id):
-            echo("FOO")
             pkg.tags.add(t.name)
 
     if pkg.releases != nil:
