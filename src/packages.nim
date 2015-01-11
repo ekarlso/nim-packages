@@ -52,6 +52,13 @@ proc rowToLicense(row: TRow): License =
         result.description = $row[1]
 
 
+proc rowToTag(row: TRow): Tag =
+    result = Tag(
+        id: parseInt($row[0]),
+        name: $row[1]
+    )
+
+
 proc hash(x: Tag): THash =
     result = x.name.hash
     result = !$result
@@ -80,11 +87,12 @@ proc connect(): TDBConn =
     return db_sqlite.open("packages.sqlite", "nim_pkg", "nim_pkg", "nim_pkg")
 
 
-proc getTags(conn: TDBConn): seq[string] =
-    result = newSeq[string]()
-    let q = db_sqlite.sql("SELECT name FROM tags")
+proc getTags(conn: TDBConn): seq[Tag] =
+    result = newSeq[Tag]()
+    let q = db_sqlite.sql("SELECT id, name FROM tags")
     for r in db_sqlite.rows(conn, q):
-        result.add($r[0])
+        let tag = rowToTag(r)
+        result.add(tag)
 
 
 proc getTagsByPackage(conn: TDBConn, id: int64): seq[Tag] =
@@ -299,10 +307,11 @@ proc releaseToJson(r: Release): JsonNode =
     result["method"] = %r.downMethod
 
 
-proc tagsToJson(tagSeq: seq[string]): JsonNode =
+proc tagsToJson(tags: seq[Tag]): JsonNode =
+    # Turn a seq of tags into a json array of tags
     result = newJArray()
-    for t in tagSeq:
-        result.add(%t)
+    for t in tags:
+        result.add(%t.name)
 
 
 proc packageToJson(pkg: Package): JsonNode =
@@ -320,7 +329,7 @@ proc packageToJson(pkg: Package): JsonNode =
         result["description"] = newJNull()
 
     if pkg.tags != nil:
-        result["tags"] = tagsToJson(pkg.tags)
+        result["tags"] = tagsToJson(pkg.tags.map((s: string) => (Tag(name: s))))
 
     if pkg.releases != nil:
         var releases = newJArray()
