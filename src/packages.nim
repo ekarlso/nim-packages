@@ -193,6 +193,11 @@ proc getPackageReleases(conn: TDBConn, id: int64): seq[Release] =
         )
         result.add(release)
 
+proc createRelease(conn: TDBConn, packageId: int64, release: Release) =
+    let query = sql("INSERT INTO releases (pkg_id, version, method, uri) VALUES (?, ?, ?, ?, ?)")
+
+    let id = insertId(conn, query, $packageId, release.version, release.downMethod, release.uri)
+
 
 proc populatePackageData(conn: TDBConn, pkg: var Package) =
     # Helper to populate additional package data.
