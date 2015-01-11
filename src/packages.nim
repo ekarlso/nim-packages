@@ -19,6 +19,7 @@ type
         releases: seq[Release]
 
     License = object
+        id: int64
         name: string
         description: string
 
@@ -28,6 +29,27 @@ type
 
     HttpException = object of Exception
         code: HttpCode
+
+
+proc rowToPackage(row: TRow): Package =
+    result = Package(
+        id: parseInt($row[0]),
+        name: $row[1],
+        web: $row[3],
+        maintainer: $row[4],
+        license: $row[5]
+    )
+    if $row[1] != nil:
+        result.description = $row[2]
+
+
+proc rowToLicense(row: TRow): License =
+    result = License(
+        name: $row[1]
+    )
+
+    if $row[1] != nil:
+        result.description = $row[1]
 
 
 proc hash(x: Tag): THash =
@@ -49,7 +71,6 @@ proc checkKeys(j: JsonNode, keys: varargs[string]) =
 
 
 proc isValidPackageName(name: string) =
-    echo ("Checking " & $name)
     if name =~ re".*\@.*":
         let msg = "'@' is not allowed in package name."
         raise newHttpExc(Http400, msg)
@@ -60,15 +81,14 @@ proc connect(): TDBConn =
 
 
 proc getTags(conn: TDBConn): seq[string] =
-    var tags = newSeq[string]()
+    result = newSeq[string]()
     let q = db_sqlite.sql("SELECT name FROM tags")
     for r in db_sqlite.rows(conn, q):
-        tags.add($r[0])
-    return tags
+        result.add($r[0])
 
 
 proc getTagsByPackage(conn: TDBConn, id: int64): seq[Tag] =
-    var tags = newSeq[Tag]()
+    result = newSeq[Tag]()
 
     let q = db_sqlite.sql("SELECT id, name FROM tags LEFT JOIN packages_tags ON tags.id = packages_tags.tag_id WHERE packages_tags.pkg_id = ?")
     for r in db_sqlite.rows(conn, q, id):
@@ -76,8 +96,7 @@ proc getTagsByPackage(conn: TDBConn, id: int64): seq[Tag] =
             id: parseInt($r[0]),
             name: $r[1]
         )
-        tags.add(tag)
-    return tags
+        result.add(tag)
 
 
 proc getOrCreateTag(conn: TDBConn, name: string): Tag =
@@ -95,19 +114,18 @@ proc getOrCreateTag(conn: TDBConn, name: string): Tag =
         tag = Tag(name: r[1], id: parseInt(r[0]))
     return tag
 
+
 proc getLicenses(conn: TDBConn): seq[License] =
-    var licenses = newSeq[License]()
+    result = newSeq[License]()
 
     let q = db_sqlite.sql("SELECT name, description FROM licenses")
     for r in db_sqlite.rows(conn, q):
-        var license = License(
+        var l = License(
             name: $r[0]
         )
         if $r[1] != nil:
-            license.description = $r[1]
-        licenses.add(license)
-
-    return licenses
+            l.description = $r[1]
+        result.add(l)
 
 
 proc getLicense(conn: TDBConn, name: string): License =
@@ -115,14 +133,12 @@ proc getLicense(conn: TDBConn, name: string): License =
 
     let r = db_sqlite.getRow(conn, query, name)
 
-    var license = License(
+    result = License(
         name: $r[0],
     )
 
     if $r[1] != nil:
-        license.description = $r[1]
-
-    return license
+        result.description = $r[1]
 
 
 proc createLicense(conn: TDBConn, license: var License): License =
@@ -135,7 +151,8 @@ proc createLicense(conn: TDBConn, license: var License): License =
 
     let id = db_sqlite.insertId(conn, q, license.name, description)
 
-    return license
+    result = license
+    result.id = id
 
 
 proc deleteLicense(conn: TDBConn, name: string): int64 =
@@ -160,6 +177,7 @@ proc setPackageTags(conn: TDBConn, pkg: Package) =
         discard execAffectedRows(conn, q, pkg.id, t.id)
 
 
+
 proc getPackageReleases(conn: TDBConn, id: int64): seq[Release] =
     var rels = newSeq[Release]()
 
@@ -175,18 +193,27 @@ proc getPackageReleases(conn: TDBConn, id: int64): seq[Release] =
     return rels
 
 
+proc populatePackageData(conn: TDBConn, pkg: var Package) =
+    # Helper to populate additional package data.
+    if pkg.tags == nil:
+        pkg.tags = newSeq[string]()
+        for t in getTagsByPackage(conn, pkg.id):
+            echo("FOO")
+            pkg.tags.add(t.name)
+
+    if pkg.releases != nil:
+        let rels = getPackageReleases(conn, pkg.id)
+        pkg.releases = rels
+
+
 proc createPackage(conn: TDBConn, pkg: var Package): Package =
     let query = db_sqlite.sql("INSERT INTO packages (name, description, license, web, maintainer) VALUES (?, ?, ?, ?, ?)")
 
-    # FIXME(ekarlso): Remove once https://github.com/Araq/Nim/issues/1866 is fixed.
-    var description: string = pkg.description
-    if description == nil:
-        description = ""
-
-    let id = db_sqlite.insertId(conn, query, pkg.name, description, pkg.license, pkg.web, pkg.maintainer)
+    let id = db_sqlite.insertId(conn, query, pkg.name, pkg.description, pkg.license, pkg.web, pkg.maintainer)
     pkg.id = id
 
-    setPackageTags(conn, pkg)
+    if pkg.tags != nil:
+        setPackageTags(conn, pkg)
     return pkg
 
 
@@ -207,13 +234,7 @@ proc getPackages(conn: TDBConn): seq[Package] =
         if $r[2] != nil:
             pkg.description = $r[2]
 
-        pkg.tags = newSeq[string]()
-        for t in getTagsByPackage(conn, pkg.id):
-            pkg.tags.add(t.name)
-
-        let rels = getPackageReleases(conn, pkg.id)
-        pkg.releases = rels
-
+        populatePackageData(conn, pkg)
         pkgs.add(pkg)
     return pkgs
 
@@ -234,13 +255,6 @@ proc getPackage(conn: TDBConn, pkgId: int): Package =
     if $r[2] != nil:
         pkg.description = $r[2]
 
-    pkg.tags = newSeq[string]()
-    for t in getTagsByPackage(conn, pkg.id):
-        pkg.tags.add(t.name)
-
-    let rels = getPackageReleases(conn, pkg.id)
-    pkg.releases = rels
-
     return pkg
 
 
@@ -248,7 +262,7 @@ proc bodyToPackage(j): Package =
     checkKeys(j, "name", "license", "web", "maintainer")
     isValidPackageName(j["name"].str)
 
-    var pkg = Package(
+    result = Package(
         name: j["name"].str,
         license: j["license"].str,
         web: j["web"].str,
@@ -256,96 +270,99 @@ proc bodyToPackage(j): Package =
     )
 
     if j.hasKey("description"):
-        pkg.description = j["description"].str
+        result.description = j["description"].str
     else:
-        pkg.description = nil
+        result.description = nil
 
-    var tags = newSeq[string]()
     if j.hasKey("tags"):
+        var tags = newSeq[string]()
         for t in j["tags"].elems:
             tags.add(t.str)
-    pkg.tags = tags
+        result.tags = tags
 
-    var releases = newSeq[Release]()
     if j.hasKey("releases"):
+        var releases = newSeq[Release]()
         for i in j["releases"].elems:
-            var release = Release(
+            let release = Release(
                 version: i["version"].str,
                 uri: i["uri"].str,
                 downMethod: i["method"].str
             )
 
             releases.add(release)
-
-    pkg.releases = releases
-    return pkg
+        result.releases = releases
 
 
-proc releaseToJObject(r: Release): JsonNode =
-    var o = newJObject()
-    o["version"] = %r.version
-    o["uri"] = %r.uri
-    o["method"] = %r.downMethod
-    return o
+proc releaseToJson(r: Release): JsonNode =
+    result = newJObject()
+    result["version"] = %r.version
+    result["uri"] = %r.uri
+    result["method"] = %r.downMethod
+
 
 proc tagsToJson(tagSeq: seq[string]): JsonNode =
-    # Set the tags
-    var tags = newJArray()
+    result = newJArray()
     for t in tagSeq:
-        tags.add(%t)
-    return tags
+        result.add(%t)
 
 
-proc packageToObject(pkg: Package): JsonNode =
-    var o = newJObject()
+proc packageToJson(pkg: Package): JsonNode =
+    result = newJObject()
 
-    o["id"] = %pkg.id
-    o["name"] = %pkg.name
-    o["license"] = %pkg.license
-    o["web"] = %pkg.web
-    o["maintainer"] = %pkg.maintainer
-
+    result["id"] = %pkg.id
+    result["name"] = %pkg.name
+    result["license"] = %pkg.license
+    result["web"] = %pkg.web
+    result["maintainer"] = %pkg.maintainer
 
     if pkg.description != nil:
-        o["description"] = %pkg.description
+        result["description"] = %pkg.description
     else:
-        o["description"] = newJNull()
+        result["description"] = newJNull()
 
-    o["tags"] = tagsToJson(pkg.tags)
+    if pkg.tags != nil:
+        result["tags"] = tagsToJson(pkg.tags)
 
-    var releases = newJArray()
-    for r in pkg.releases:
-        var ro = releaseToJObject(r)
-        releases.add(ro)
-    o["releases"] = releases
-
-    return o
+    if pkg.releases != nil:
+        var releases = newJArray()
+        for r in pkg.releases:
+            var ro = releaseToJson(r)
+            releases.add(ro)
+        result["releases"] = releases
+    else:
+        result["releases"] = newJNull()
 
 
 proc bodyToLicense(j: JsonNode): License =
     checkKeys(j, "name")
 
-    var license = License(
+    result = License(
         name: $j["name"].str
     )
 
     if j.hasKey("description"):
-        license.description = j["description"].str
+        result.description = j["description"].str
     else:
-        license.description = nil
-    return license
+        result.description = nil
 
 
 proc licenseToJObject(l: License): JsonNode =
-    var o = newJObject()
-    o["name"] = %l.name
+    result = newJObject()
+
+    result["name"] = %l.name
 
     if l.description != nil:
-        o["description"] = %l.description
+        result["description"] = %l.description
     else:
-        o["description"] = newJNull()
+        result["description"] = newJNull()
 
-    return o
+
+proc errorJObject(code: HttpCode, msg: string): JsonNode =
+    let c = $code
+    result = %{
+        "message": %msg,
+        "code": %c
+    }
 
 
 var db = connect()
@@ -383,12 +400,8 @@ routes:
             echo("ERROR" & getCurrentExceptionMsg())
 
         if errorMsg != nil:
-            let c = $errorCode
-            let data = %{
-                "message": %errorMsg,
-                "code": %c
-            }
-            halt(errorCode, headers, $data)
+            let error = errorJObject(errorCode, errorMsg)
+            halt(errorCode, headers, $error)
 
         let obj = licenseToJObject(license)
         resp(Http201, headers, $obj)
@@ -402,12 +415,43 @@ routes:
         resp(Http200, "")
 
     get "/packages":
-        let pkgs = getPackages(db)
+        var
+            pkgs = newSeq[Package]()
+            dbRows: seq[TRow]
+            queryKey: string
+            queryVal: string
+            query: TSqlQuery
+            statement: string = "SELECT p.id, p.name, p.description, p.license, p.web, p.maintainer FROM packages AS p"
+
+        for k, v in request.params.pairs:
+            if queryKey == nil:
+                queryKey = k
+                queryVal = v
+            else:
+                let error = errorJObject(Http400, "Only one filter parameter currently allowed.")
+                halt(Http400, {"content-type": "application/json"}, $error)
+
+        case queryKey:
+            of "tag":
+                statement &= " LEFT JOIN packages_tags ON p.id = packages_tags.pkg_id INNER JOIN tags ON packages_tags.tag_id = tags.id WHERE tags.name = ?"
+                query = sql(statement)
+                dbRows = toSeq(rows(db, query, queryVal))
+            of nil:
+                query = sql(statement)
+                dbRows = toSeq(rows(db, query))
+            else:
+                let error = errorJObject(Http400, "Invalid query parameter $#" % queryKey)
+                halt(Http400, $error)
+
+        for row in dbRows:
+            var pkg: Package = rowToPackage(row)
+            populatePackageData(db, pkg)
+            pkgs.add(pkg)
 
         var pkg_array = newJArray()
 
         for pkg in pkgs:
-            let pkg_obj = packageToObject(pkg)
+            let pkg_obj = packageToJson(pkg)
             pkg_array.add(pkg_obj)
 
         resp($pkg_array, "application/json")
@@ -415,7 +459,7 @@ routes:
     get "/packages/@pkgId":
         let pkg = getPackage(db, parseInt(@"pkgId"))
 
-        let obj = packageToObject(pkg)
+        let obj = packageToJson(pkg)
         resp($obj, "application/json")
 
     post "/packages":
@@ -439,15 +483,10 @@ routes:
             echo("ERROR" & getCurrentExceptionMsg())
 
         if errorMsg != nil:
-            let c = $errorCode
-            let data = %{
-                "message": %errorMsg,
-                "code": %c
-            }
-            halt(errorCode, headers, $data)
+            let error = errorJObject(errorCode, errorMsg)
+            halt(errorCode, headers, $error)
 
-
-        let obj = packageToObject(pkg)
+        let obj = packageToJson(pkg)
         resp(Http201, headers, $obj)
 
     get "/tags":
