@@ -2,14 +2,15 @@
 /*jshint esnext: true */
 
 class TagsPackagesCtrl {
-  constructor ($scope, $http) {
-    $http.get('/tags').success(function(result) {
-        $scope.tags = result;
+  constructor ($scope, $http, $stateParams) {
+    $scope.$stateParams = $stateParams;
+    $http.get('/packages?tag=' + $stateParams.tagName).success(function(result) {
+        $scope.packages = result;
     });
   }
 }
 
 
-TagsPackagesCtrl.$inject = ['$scope', '$http'];
+TagsPackagesCtrl.$inject = ['$scope', '$http', '$stateParams'];
 
 export default TagsPackagesCtrl;

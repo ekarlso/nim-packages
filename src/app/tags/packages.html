@@ -1,0 +1,9 @@
+<h1>Packages tagged with: {{$stateParams.tagName}}</h1>
+
+<div class="row" ng-repeat="package in packages">
+  <div class="section">
+    <span>
+      <a ui-sref="packages.detail({pkgId: package.id})">{{package.name}}</a>
+    </span>
+  </div>
+</div>
