@@ -30,6 +30,15 @@ CREATE TABLE packages_tags (
         ON DELETE CASCADE
 );
 
+CREATE TABLE users (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT
+                            NOT NULL,
+    email           VARCHAR(120) NOT NULL,
+    password        VARCHAR(120),
+    display_name    VARCHAR(120),
+    github          VARCHAR(120)
+);
+
 CREATE TABLE tags (
     id              INTEGER PRIMARY KEY AUTOINCREMENT
                     NOT NULL,
@@ -46,3 +55,4 @@ CREATE TABLE licenses (
 );
 
 CREATE UNIQUE INDEX license_name ON licenses (name);
+CREATE UNIQUE INDEX user_email ON users (email);

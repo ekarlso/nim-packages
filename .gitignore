@@ -3,4 +3,9 @@ bower_components/
 .sass-cache/
 .tmp/
 dist/
+
 nimcache
+*
+!**/
+!*.*
+nimcache/

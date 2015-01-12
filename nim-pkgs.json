@@ -1,0 +1,5 @@
+{
+    "secret": "secret",
+    "github_secret": "gh_secret",
+    "port": 5000
+}

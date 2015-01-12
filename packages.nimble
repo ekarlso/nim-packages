@@ -10,3 +10,7 @@ srcDir = "src"
 
 [Deps]
 Requires: "jester"
+Requires: "easy-bcrypt <= 2.0.2"
+Requires: "uuid"
+Requires: "jwt"
+Requires: "docopt"

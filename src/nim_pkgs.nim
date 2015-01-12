@@ -1,6 +1,15 @@
 import asyncdispatch, hashes, future, jester, json, marshal, db_sqlite, sequtils, strutils, os, re, tables
 
+import easy_bcrypt, jester
 from asynchttpserver import Http404
+from httpclient import newAsyncHttpClient, get, getContent
+
+import docopt
+
+from times import nil
+
+import jwt
+
 
 type
     Release = object
@@ -27,8 +36,56 @@ type
         id: int64
         name: string
 
+    User = object
+        id: int64
+        email: string
+        password: string
+        displayName: string
+        github: string
+
     HttpException = object of Exception
         code: HttpCode
+
+let doc = """
+Packages index api / server a'la crates.io.
+
+Usage:
+    nim_pkgs [-c FILE]
+
+    -c              JSON Config file [default: ./nim-pkgs.json]
+
+Options:
+    -h, --help      Help message
+"""
+
+let args = docopt(doc, version="nim-pkgs 0.0.1")
+
+var
+  cfg: JsonNode
+  cfgFile: string
+
+if args["-c"]:
+  cfgFile = $args["FILE"]
+else:
+  cfgFile = getCurrentDir() & "/nim-pkgs.json"
+
+if not existsFile(cfgFile):
+  quit("Config file $# not found... exiting." % cfgFile)
+
+echo("Reading config...")
+
+let cfgContents = readFile(cfgFile)
+cfg = parseJson(cfgContents)
+
+if not cfg.hasKey("secret"):
+  quit("Missing 'secret' setting")
+
+if not cfg.hasKey("github_secret"):
+  quit("Missing 'github_secret' setting")
+
+const
+    GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
+    GITHUB_USERS_API_URL = "https://api.github.com/user"
 
 
 proc rowToPackage(row: TRow): Package =
@@ -52,6 +109,16 @@ proc rowToLicense(row: TRow): License =
         result.description = $row[1]
 
 
+proc rowToUser(row: TRow): User =
+    result = User(
+        id: parseInt($row[0]),
+        email: $row[1],
+        password: $row[2],
+        displayName: $row[3],
+        github: $row[4]
+    )
+
+
 proc rowToTag(row: TRow): Tag =
     result = Tag(
         id: parseInt($row[0]),
@@ -68,6 +135,20 @@ template newHttpExc*(httpCode: HttpCode, message: string): expr =
     var e = newException(HTTPException, message)
     e.code = httpCode
     e
+
+
+proc mkQueryString(elements: openarray[tuple[key, value: string]]): string =
+    result = ""
+    let len = elements.len
+    for i, v in elements:
+        result.add(v.key & "=" & v.value)
+        if (i < len -1):
+            result.add("&")
+
+
+proc queryToSringTable(s: string): StringTableRef =
+    let data = s.split("&").map((s: string) => (s.split("="))).map((i: seq[string]) => (i[0], i[1]))
+    result = newStringTable(data)
 
 
 proc checkKeys(j: JsonNode, keys: varargs[string]) =
@@ -295,6 +376,12 @@ proc bodyToPackage(j): Package =
         result.releases = releases
 
 
+proc getUser(conn: TDBConn, email: string): User =
+    let query = sql("SELECT id, email, password, display_name, github FROM users WHERE email = ?")
+    let row = getRow(conn, query, email)
+    result = rowToUser(row)
+
+
 proc releaseToJson(r: Release): JsonNode =
     result = newJObject()
     result["version"] = %r.version
@@ -360,6 +447,12 @@ proc licenseToJObject(l: License): JsonNode =
         result["description"] = newJNull()
 
 
+proc userToJson(user: User): JsonNode =
+    result = newJObject()
+    result["displayName"] = %user.displayName
+    result["email"] = %user.email
+
+
 proc errorJObject(code: HttpCode, msg: string): JsonNode =
     let c = $code
     result = %{
@@ -368,9 +461,58 @@ proc errorJObject(code: HttpCode, msg: string): JsonNode =
     }
 
 
+# Create JWT token
+proc createToken(user: User): JsonNode =
+  let
+    expire = 7200
+    iat = times.toSeconds(times.getTime()).int
+    exp = iat + expire
+    claims = %{
+      "sub": %user.email,
+      "iss": %"pkg",
+      "iat": %iat,
+      "nbf": %iat,
+      "exp": %exp
+    }
+
+    headers = %{
+      "alg": %"HS256",
+      "typ": %"JWT"
+    }
+
+    tJson = %{"header": headers, "claims": claims}
+
+  var
+    token = jwt.toJWT(tJson)
+    secret = cfg["secret"].str
+
+  token.signature = jwt.sign(token, secret)
+  result = %{"token": %token}
+
+
+proc verifyToken(token: JWT) =
+  var secret = cfg["secret"].str
+  if not token.verify(secret):
+    raise newHttpExc(Http401, "Invalid token")
+
+
+proc unpackToken(header: string): JWT =
+  let parts = header.split(" ")
+  if not parts.len == 2:
+    raise newHttpExc(Http401, "Invalid Authorization header.")
+  let tokenB64 = $parts[1]
+  result = tokenB64.toJWT
+
+
+echo("Connecting to DB")
 var db = connect()
 db_sqlite.exec(db, db_sqlite.sql("PRAGMA foreign_keys = ON;"))
-var settings = newSettings(staticDir = getCurrentDir())
+
+let
+  staticDir =  if cfg.hasKey("static_dir"): cfg["static_dir"].str else: getCurrentDir() & "/dist"
+  port = if cfg.hasKey("port") and cfg["port"].kind == JInt: cfg["port"].num else: 5000
+
+var settings = newSettings(staticDir = staticDir, port = Port(port))
 
 routes:
     get "/licenses":
@@ -383,6 +525,9 @@ routes:
         resp($jarray, "application/json")
 
     post "/licenses":
+        var token = unpackToken(request.headers["Authorization"])
+        verifyToken(token)
+
         var body = parseJson($request.body)
 
         var license: License
@@ -410,6 +555,9 @@ routes:
         resp(Http201, headers, $obj)
 
     post "/licenses/@licenseName/delete":
+        var token = unpackToken(request.headers["Authorization"])
+        verifyToken(token)
+
         let rows = deleteLicense(db, @"licenseName")
 
         let headers = {"content-type": "application/json"}
@@ -466,6 +614,9 @@ routes:
         resp($obj, "application/json")
 
     post "/packages":
+        var token = unpackToken(request.headers["Authorization"])
+        verifyToken(token)
+
         var body = parseJson($request.body)
 
         var pkg: Package
@@ -496,5 +647,106 @@ routes:
         let tags = getTags(db)
         let jtags = tagsToJson(tags)
         resp($jtags, "application/json")
+
+    post "/auth/signup":
+        let body = parseJson($request.body)
+
+        let hashed = $hashPw(body["password"].str, genSalt(12))
+
+        var user = User(
+            displayName: body["displayName"].str,
+            email: body["email"].str,
+            password: hashed
+        )
+
+        let query = sql("INSERT INTO users (email, password, display_name) VALUES (?, ?, ?)")
+        user.id = insertId(db, query, user.email, hashed, user.displayName)
+
+        let token = createToken(user)
+        resp(Http200, $token)
+
+    post "/auth/login":
+        let body = parseJson($request.body)
+        let
+            email = body["email"].str
+            password = body["password"].str
+
+        var user: User
+        user = getUser(db, email)
+        let salt = loadPasswordSalt(user.password)
+        if hashPw(password, salt) != salt:
+            # TODO(ekarlso): Fix better error
+            halt(Http400)
+
+        var data = createToken(user)
+        data["user"] = userToJson(user)
+        resp(Http200, $data)
+
+        resp(Http200, $data)
+
+    post "/auth/github":
+        var
+            user: User
+            dbQuery: TSqlQuery
+            data: JsonNode
+            dbRow: TRow
+
+        let
+            client = newAsyncHttpClient()
+            body = parseJson($request.body)
+            params = {
+                "client_id": body["clientId"].str,
+                "redirect_uri": body["redirectUri"].str,
+                "code": body["code"].str,
+                "client_secret": cfg["github_secret"].str
+            }
+
+        let query = mkQueryString(params)
+        var cresp = await client.get(GITHUB_ACCESS_TOKEN_URL & "?" & query)
+        cresp = await client.get(GITHUB_USERS_API_URL & "?" & cresp.body)
+
+        let profile = parseJson(cresp.body)
+
+        if request.headers.hasKey("Authorization"):
+            echo("Linking accounts")
+
+        # Existing account
+        dbQuery = sql("SELECT id, email, password, display_name, github FROM users WHERE github = ?")
+        dbRow = getRow(db, dbQuery, profile["id"])
+
+        if dbRow[0] != "":
+            echo("Found existing user")
+            user = rowToUser(dbRow)
+
+            data = createToken(user)
+            data["user"] = userToJson(user)
+            halt(Http200, $data)
+
+        # Create new entry
+        user = User(
+            displayName: profile["name"].str,
+            email: profile["email"].str,
+            github: $profile["id"].num
+        )
+
+        dbQuery = sql("INSERT INTO users (email, display_name, github) VALUES (?, ?, ?)")
+        user.id = insertId(db, dbQuery, user.email, user.displayName, user.github)
+
+        data = createToken(user)
+        data["user"] = userToJson(user)
+        resp(Http200, $data)
+
+    get "/profile":
+        var user: User
+
+        var token = unpackToken(request.headers["Authorization"])
+        verifyToken(token)
+
+        let sub = token.claims["sub"].node
+        user = getUser(db, sub.str)
+
+        var json = userToJson(user)
+
+        resp(Http200, $json)
 
 runForever()

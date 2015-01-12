@@ -4,7 +4,7 @@
 class CreatePackageCtrl {
   constructor ($scope, $state, $stateParams, $http) {
     $http.get('licenses').success(function(result) {
-        $scope.licenses = result
+        $scope.licenses = result;
     });
 
     $scope.pkg = {

@@ -5,6 +5,12 @@ import MainCtrl from './main/main.controller';
 
 import NavbarCtrl from '../components/navbar/navbar.controller';
 
+import LoginCtrl from './auth/login.controller';
+import LogoutCtrl from './auth/logout.controller';
+import SignupCtrl from './auth/signup.controller';
+
+import ProfileCtrl from './profile/index.controller';
+
 // Admin stuff
 import CreateLicenseCtrl from './admin/licenses/create.controller';
 import LicenseIndexCtrl from './admin/licenses/index.controller';
@@ -18,16 +24,41 @@ import CreatePackageCtrl from './packages/create.controller';
 import PackageDetailCtrl from './packages/detail.controller';
 import PackageVersionCtrl from './packages/version.controller';
 
-angular.module('nimPackages', ['ui.router', 'ui.bootstrap'])
+import AccountService from './services/account';
+
+angular.module('nimPackages', ['ui.router', 'ui.bootstrap', 'satellizer', 'ngMessages'])
   .controller('MainCtrl', MainCtrl)
   .controller('NavbarCtrl', NavbarCtrl)
+  .service('$profile', AccountService)
 
-  .config(function ($stateProvider, $urlRouterProvider) {
+  .config(function ($stateProvider, $urlRouterProvider, $authProvider) {
+
     $stateProvider
       .state('home', {
         url: '/',
         templateUrl: 'app/main/main.html',
         controller: 'MainCtrl'
+      })
+
+      .state('login', {
+        url: '/login',
+        templateUrl: 'app/auth/login.html',
+        controller: LoginCtrl
+      })
+      .state('logout', {
+        url: '/logout',
+        template: null,
+        controller: LogoutCtrl
+      })
+      .state('signup', {
+        url: '/signup',
+        templateUrl: 'app/auth/signup.html',
+        controller: SignupCtrl
+      })
+      .state('profile', {
+        url: '/profile',
+        templateUrl: 'app/profile/index.html',
+        controller: ProfileCtrl
       })
 
       .state('packages', {
@@ -69,7 +100,7 @@ angular.module('nimPackages', ['ui.router', 'ui.bootstrap'])
         url: '/list',
         views: {
           '': {
-            templateUrl: '/app/tags/list.html',
+            templateUrl: 'app/tags/list.html',
             controller: TagsIndexCtrl
           }
         }
@@ -102,5 +133,11 @@ angular.module('nimPackages', ['ui.router', 'ui.bootstrap'])
       });
 
     $urlRouterProvider.otherwise('/');
+
+    $authProvider.github({
+      clientId: '18aa6d30358a4d7a948e',
+      redirectUri: 'https://nim-pkg.svcs.io'
+    });
+      //redirectUri: "https://npm-pkg.svcs.io:8080/index.html"});
   })
 ;

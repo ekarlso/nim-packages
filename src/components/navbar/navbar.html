@@ -12,10 +12,22 @@
         <li class="active"><a ui-sref="packages.list">Packages</a></li>
         <li class="active"><a ui-sref="tags.list">Tags</a></li>
 
-        <li class="dropdown" dropdown>
+        <li class="dropdown" dropdown ng-show="authed">
           <a href="#" class="dropdown-toggle" dropdown-toggle>Admin <b class="caret"></b></a>
           <ul class="dropdown-menu">
             <li><a ui-sref="admin.licenses">Licenses</a></li>
+          </ul>
+        </li>
+
+
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li ng-show="!authed"><a ui-sref="login">Login</a></li>
+        <li class="dropdown" dropdown ng-show="authed">
+          <a href="#" class="dropdown-toggle" dropdown-toggle>{{user.displayName}} <b class="caret"></b> </a>
+          <ul class="dropdown-menu">
+            <li><a ui-sref="profile">Profile</a></li>
+            <li><a ui-sref="logout">Logout</a></li>
           </ul>
         </li>
       </ul>

@@ -1,5 +1,10 @@
 @import "helpers";
 
+$main-bg-dark: #ABB3AC;
+$main-color: #383838;
+$body-bg-color: #e4e7ec;
+
+
 .browsehappy {
   margin: 0.2em 0;
   background: #ccc;
@@ -15,14 +20,18 @@
   }
 }
 
-$main-bg-dark: #ABB3AC;
-$main-color: #383838;
+body {
+  font-family: 'Open Sans', sans-serif;
+  background: $body-bg-color;
+}
 
-.package {
-    height: 20px;
-    margin-bottom: 5px;
-    width: 200px;
-    background: gray;
+// Page stuffs
+.right {
+  border-left: 2px solid;
+}
+
+.controls {
+  margin-bottom: 10px;
 }
 
 .section {
@@ -33,6 +42,14 @@ $main-color: #383838;
 .about {
         line-height: 180%;
         margin-bottom: 40px;
+}
+
+// Package stuffs
+.package {
+    height: 20px;
+    margin-bottom: 5px;
+    width: 200px;
+    background: gray;
 }
 
 .install {
@@ -60,13 +77,95 @@ $main-color: #383838;
   }
 }
 
-.right {
-  border-left: 2px solid;
+// Auth stuffs
+.center-form {
+  width: 330px;
+  margin: 12% auto;
 }
 
-.controls {
-  margin-bottom: 10px;
+.signup-or-separator {
+  position: relative;
+  height: 34px;
+  text-align: center;
+  background: none;
 }
+
+.signup-or-separator hr {
+  width: 90%;
+  margin: -16px auto 10px auto;
+  border-top: 1px solid #dce0e0;
+}
+
+.signup-or-separator .text {
+  display: inline-block;
+  padding: 8px;
+  margin: 0;
+  background-color: #fff;
+}
+
+.has-feedback .form-control-feedback {
+  top: 0;
+  left: 0;
+  width: 46px;
+  height: 46px;
+  line-height: 46px;
+  color: #555;
+}
+
+.password-strength-indicator {
+  position: absolute;
+  top: 10px;
+  right: 0;
+  width: 5px;
+  padding: 0 15px;
+}
+
+.password-strength-indicator span {
+  display: block;
+  width: 5px;
+  height: 5px;
+  margin-bottom: 2px;
+  background: #ebeef1;
+  border-radius: 5px;
+}
+
+[class^='ion-'] {
+  font-size: 1.2em;
+}
+
+.has-feedback .form-control {
+  padding-left: 42.5px;
+}
+
+.alert-material {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1;
+  display: inline-block;
+  min-height: 48px;
+  padding: 13px 24px 12px;
+  font-family: 'Roboto', sans-serif;
+  color: #f1f1f1;
+  cursor: default;
+  background: #323232;
+  border-radius: 2px;
+  outline: none;
+  box-shadow: 0 2px 5px 0 rgba(0, 0, 0, 0.26);
+}
+
+.btn-github {
+  color: #fff;
+  background-color: #444;
+  border: 1px solid #3b3b3b;
+}
+
+.btn-github:hover,
+.btn-github:focus {
+  color: #fff;
+  background-color: #303030;
+}
+
 
 // injector
 @import '_helpers.scss';
