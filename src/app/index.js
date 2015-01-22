@@ -26,7 +26,7 @@ import PackageVersionCtrl from './packages/version.controller';
 
 import AccountService from './services/account';
 
-angular.module('nimPackages', ['ui.router', 'ui.bootstrap', 'satellizer', 'ngMessages'])
+angular.module('nimPackages', ['ui.router', 'ui.bootstrap', 'ui.select', 'satellizer', 'ngMessages'])
   .controller('MainCtrl', MainCtrl)
   .controller('NavbarCtrl', NavbarCtrl)
   .service('$profile', AccountService)
