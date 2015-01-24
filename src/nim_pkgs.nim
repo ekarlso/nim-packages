@@ -25,7 +25,6 @@ type
         maintainer: string
         license: string
         tags: seq[string]
-        releases: seq[Release]
 
     License = object
         id: int64
@@ -261,7 +260,6 @@ proc setPackageTags(conn: TDBConn, pkg: Package) =
         discard execAffectedRows(conn, query, pkg.id, tag.id)
 
 
-
 proc getPackageReleases(conn: TDBConn, id: int64): seq[Release] =
     result = newSeq[Release]()
 
@@ -273,6 +271,7 @@ proc getPackageReleases(conn: TDBConn, id: int64): seq[Release] =
             downMethod: $row[4]
         )
         result.add(release)
+
 
 proc createRelease(conn: TDBConn, packageId: int64, release: Release) =
     let query = sql("INSERT INTO releases (pkg_id, version, method, uri) VALUES (?, ?, ?, ?, ?)")
@@ -286,10 +285,6 @@ proc populatePackageData(conn: TDBConn, pkg: var Package) =
         pkg.tags = newSeq[string]()
         for tag in getTagsByPackage(conn, pkg.id):
             pkg.tags.add(tag.name)
-
-    if pkg.releases != nil:
-        let rels = getPackageReleases(conn, pkg.id)
-        pkg.releases = rels
 
 
 proc createPackage(conn: TDBConn, pkg: var Package): Package =
@@ -363,18 +358,6 @@ proc bodyToPackage(j): Package =
             tags.add(t.str)
         result.tags = tags
 
-    if j.hasKey("releases"):
-        var releases = newSeq[Release]()
-        for i in j["releases"].elems:
-            let release = Release(
-                version: i["version"].str,
-                uri: i["uri"].str,
-                downMethod: i["method"].str
-            )
-
-            releases.add(release)
-        result.releases = releases
-
 
 proc getUser(conn: TDBConn, email: string): User =
     let query = sql("SELECT id, email, password, display_name, github FROM users WHERE email = ?")
@@ -382,21 +365,21 @@ proc getUser(conn: TDBConn, email: string): User =
     result = rowToUser(row)
 
 
-proc releaseToJson(r: Release): JsonNode =
+proc `%`(r: Release): JsonNode =
     result = newJObject()
     result["version"] = %r.version
     result["uri"] = %r.uri
     result["method"] = %r.downMethod
 
 
-proc tagsToJson(tags: seq[Tag]): JsonNode =
+proc `%`(tags: seq[Tag]): JsonNode =
     # Turn a seq of tags into a json array of tags
     result = newJArray()
     for tag in tags:
         result.add(%tag.name)
 
 
-proc packageToJson(pkg: Package): JsonNode =
+proc `%`(pkg: Package): JsonNode =
     result = newJObject()
 
     result["id"] = %pkg.id
@@ -411,16 +394,7 @@ proc packageToJson(pkg: Package): JsonNode =
         result["description"] = newJNull()
 
     if pkg.tags != nil:
-        result["tags"] = tagsToJson(pkg.tags.map((s: string) => (Tag(name: s))))
-
-    if pkg.releases != nil:
-        var releases = newJArray()
-        for r in pkg.releases:
-            var ro = releaseToJson(r)
-            releases.add(ro)
-        result["releases"] = releases
-    else:
-        result["releases"] = newJNull()
+        result["tags"] = %(pkg.tags.map((s: string) => (Tag(name: s))))
 
 
 proc bodyToLicense(j: JsonNode): License =
@@ -436,7 +410,7 @@ proc bodyToLicense(j: JsonNode): License =
         result.description = nil
 
 
-proc licenseToJObject(l: License): JsonNode =
+proc `%`(l: License): JsonNode =
     result = newJObject()
 
     result["name"] = %l.name
@@ -447,7 +421,7 @@ proc licenseToJObject(l: License): JsonNode =
         result["description"] = newJNull()
 
 
-proc userToJson(user: User): JsonNode =
+proc `%`(user: User): JsonNode =
     result = newJObject()
     result["displayName"] = %user.displayName
     result["email"] = %user.email
@@ -520,8 +494,7 @@ routes:
 
         var jarray = newJArray()
         for i in lics:
-            let obj = licenseToJObject(i)
-            jarray.add(obj)
+            jarray.add(%i)
         resp($jarray, "application/json")
 
     post "/licenses":
@@ -551,7 +524,7 @@ routes:
             let error = errorJObject(errorCode, errorMsg)
             halt(errorCode, headers, $error)
 
-        let obj = licenseToJObject(license)
+        let obj = %license
         resp(Http201, headers, $obj)
 
     post "/licenses/@licenseName/delete":
@@ -602,7 +575,7 @@ routes:
         var pkg_array = newJArray()
 
         for pkg in pkgs:
-            let pkg_obj = packageToJson(pkg)
+            let pkg_obj = %pkg
             pkg_array.add(pkg_obj)
 
         resp($pkg_array, "application/json")
@@ -610,7 +583,7 @@ routes:
     get "/packages/@pkgId":
         let pkg = getPackage(db, parseInt(@"pkgId"))
 
-        let obj = packageToJson(pkg)
+        let obj = %pkg
         resp($obj, "application/json")
 
     post "/packages":
@@ -640,12 +613,12 @@ routes:
             let error = errorJObject(errorCode, errorMsg)
             halt(errorCode, headers, $error)
 
-        let obj = packageToJson(pkg)
+        let obj = %pkg
         resp(Http201, headers, $obj)
 
     get "/tags":
         let tags = getTags(db)
-        let jtags = tagsToJson(tags)
+        let jtags = %tags
         resp($jtags, "application/json")
 
     post "/auth/signup":
@@ -679,7 +652,7 @@ routes:
             halt(Http400)
 
         var data = createToken(user)
-        data["user"] = userToJson(user)
+        data["user"] = %user
         resp(Http200, $data)
 
         resp(Http200, $data)
@@ -719,7 +692,7 @@ routes:
             user = rowToUser(dbRow)
 
             data = createToken(user)
-            data["user"] = userToJson(user)
+            data["user"] = %user
             halt(Http200, $data)
 
         # Create new entry
@@ -733,7 +706,7 @@ routes:
         user.id = insertId(db, dbQuery, user.email, user.displayName, user.github)
 
         data = createToken(user)
-        data["user"] = userToJson(user)
+        data["user"] = %user
         resp(Http200, $data)
 
     get "/profile":
@@ -745,7 +718,7 @@ routes:
         let sub = token.claims["sub"].node
         user = getUser(db, sub.str)
 
-        var json = userToJson(user)
+        var json = %user
 
         resp(Http200, $json)
 
