@@ -1,0 +1,245 @@
+swagger: '2.0'
+
+# This is your document metadata
+info:
+  version: "0.0.1"
+  title: Nim packages API
+basePath: /
+host: nim-pkg.svcs.io:8080
+schemes:
+  - https
+produces:
+  - application/json
+
+# Describe your paths here
+paths:
+  /packages:
+    get:
+      description:
+        Get `Packages`.
+      parameters:
+        - name: tag
+          type: string
+          in: query
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: '#/definitions/Package'
+        default:
+          description: Default response
+          schema:
+            $ref: '#/definitions/Error'
+    post:
+      summary: Create a `Package`
+      description:
+        Create a `Package`
+      parameters:
+        - name: body
+          in: body
+          required: true
+          description: |
+            Body
+          schema:
+            $ref: '#/definitions/Package'
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: '#/definitions/Package'
+        default:
+          description: Default response
+          schema:
+            $ref: '#/definitions/Error'
+
+  /packages/{id}:
+    get:
+      description:
+        Get `Package`
+      parameters:
+        - name: id
+          type: string
+          in: path
+          required: true
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: '#/definitions/Packages'
+        default:
+          description: Default response
+          schema:
+            $ref: '#/definitions/Error'
+
+  /packages/{packageId}/releases:
+    get:
+      description: Get a `Package`'s relesaes
+      parameters:
+        - name: packageId
+          type: string
+          in: path
+          required: true
+      responses:
+        200:
+          description: List of all Releases's in a package
+          schema:
+            $ref: '#/definitions/Releases'
+        default:
+          description: Default response
+          schema:
+            $ref: '#/definitions/Error'
+    post:
+      summary: Create a `Package`
+      description:
+        Create a `Package`
+      parameters:
+        - name: packageId
+          type: string
+          in: path
+          required: true
+        - name: body
+          in: body
+          description: |
+            Body
+          schema:
+            $ref: '#/definitions/Package'
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: '#/definitions/Package'
+        default:
+          description: Default response
+          schema:
+            $ref: '#/definitions/Error'
+
+  /licenses:
+    get:
+      description:
+        Get `Licenses`.
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: '#/definitions/Licenses'
+        default:
+          description: Default response
+          schema:
+            $ref: '#/definitions/Error'
+    post:
+      summary: Create a `License`
+      description:
+        Create a `License`
+      parameters:
+        - name: body
+          in: body
+          required: true
+          description: |
+            Body
+          schema:
+            $ref: '#/definitions/License'
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: '#/definitions/License'
+        default:
+          description: Default response
+          schema:
+            $ref: '#/definitions/Error'
+
+  /tags:
+    get:
+      description:
+        Get list of `Tags`.
+      responses:
+        200:
+          description: Success
+          schema:
+            $ref: '#/definitions/Tags'
+        default:
+          description: Default response
+          schema:
+            $ref: '#/definitions/Error'
+
+definitions:
+  Error:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+  Package:
+    description: |
+      A `Package`
+    properties:
+      id:
+        type: string
+      name:
+        description: Package name
+        type: string
+      description:
+        description: Description of the Package.
+        type: string
+      web:
+        description: Homepage of the Package.
+        type: string
+      maintainers:
+        description: Who's maintaining the Package.
+        type: string
+      license:
+        description: License
+        type: string
+      tags:
+        type: array
+        items:
+          type: string
+
+  Release:
+    description: |
+      A `Package` release.
+    properties:
+      id:
+        type: string
+      package_id:
+        description: Package ID this Release belongs to
+        type: string
+      method:
+        description: The method use to download this Package Release.
+        type: string
+      version:
+        description: The Release version of this Package.
+        type: string
+      uri:
+        type: string
+
+  License:
+    description: |
+      Allowed license in the system
+    properties:
+      name:
+        type: string
+      description:
+        type: string
+  Tag:
+    description: |
+      Auto-generated tags from tags that are registered in pacakges
+    properties:
+      name:
+        type: string
+  Packages:
+    type: array
+    items:
+      $ref: '#/definitions/Package'
+  Releases:
+    type: array
+    items:
+      $ref: '#/definitions/Release'
+  Licenses:
+    type: array
+    items:
+      $ref: '#/definitions/License'
+  Tags:
+    type: array
+    items:
+      $ref: '#/definitions/Tag'
