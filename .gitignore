@@ -1,11 +1,13 @@
+nimcache
+*
+!**/
+!*.*
+nimcache/
+
 node_modules/
 bower_components/
 .sass-cache/
 .tmp/
 dist/
 
-nimcache
-*
-!**/
-!*.*
-nimcache/
+api-docs
