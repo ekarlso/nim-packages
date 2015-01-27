@@ -22,17 +22,19 @@ import TagsPackagesCtrl from './tags/packages.controller';
 import PackageCtrl from './packages/packages.controller';
 import CreatePackageCtrl from './packages/create.controller';
 import PackageDetailCtrl from './packages/detail.controller';
-import PackageVersionCtrl from './packages/version.controller';
+
+// Releases
+import CreateReleaseCtrl from './packages/releases/create.controller';
+import ReleaseCtrl from './packages/release.controller';
 
 import AccountService from './services/account';
 
-angular.module('nimPackages', ['ui.router', 'ui.bootstrap', 'ui.select', 'satellizer', 'ngMessages'])
+angular.module('nimPackages', ['ui.router', 'ui.bootstrap', 'satellizer', 'ngMessages', 'ngTagsInput'])
   .controller('MainCtrl', MainCtrl)
   .controller('NavbarCtrl', NavbarCtrl)
   .service('$profile', AccountService)
 
   .config(function ($stateProvider, $urlRouterProvider, $authProvider) {
-
     $stateProvider
       .state('home', {
         url: '/',
@@ -66,18 +68,8 @@ angular.module('nimPackages', ['ui.router', 'ui.bootstrap', 'ui.select', 'satell
         abstract: true,
         templateUrl: 'app/packages/index.html'
       })
-      .state('packages.detail', {
-        url: '/:pkgId/detail',
-        templateUrl: 'app/packages/detail.html',
-        controller: PackageDetailCtrl
-      })
-      .state('packages.list', {
-        url: '/list',
-        templateUrl: 'app/packages/list.html',
-        controller: PackageCtrl
-      })
       .state('packages.create', {
-        url: '/packages/create',
+        url: '/create',
         views: {
           '': {
             templateUrl: 'app/packages/create.html',
@@ -85,10 +77,27 @@ angular.module('nimPackages', ['ui.router', 'ui.bootstrap', 'ui.select', 'satell
           }
         }
       })
-      .state('packages.version', {
-        url: '/packages/:pkgId/:pkgVersion',
-        templateUrl: 'app/packages/version.html',
-        controller: PackageVersionCtrl
+      .state('packages.list', {
+        templateUrl: 'app/packages/list.html',
+        controller: PackageCtrl
+      })
+      .state('packages.detail', {
+        url: '/:pkgId/detail',
+        views: {
+          '': {
+            controller: PackageDetailCtrl,
+            templateUrl: 'app/packages/detail.html',
+          }
+        }
+      })
+      .state('packages.detail.releaseCreate', {
+        url: '/release/create',
+        views: {
+          '@packages': {
+            templateUrl: 'app/packages/releases/create.html',
+            controller: CreateReleaseCtrl
+          }
+        }
       })
 
       .state('tags', {

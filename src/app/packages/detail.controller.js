@@ -3,10 +3,13 @@
 
 class PackageDetailCtrl {
   constructor ($scope, $http, $stateParams) {
-    $scope.params = $stateParams;
     $http.get('/packages/' + $stateParams.pkgId).success(function(result) {
         $scope.pkg = result;
     });
+
+    $http.get('/packages/' + $stateParams.pkgId + '/releases').success(function(result) {
+        $scope.releases = result;
+    })
   }
 }
 

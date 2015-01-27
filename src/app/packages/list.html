@@ -1,18 +1,18 @@
-  <h1>Packages</h1>
+<h1>Packages</h1>
 
-  <div class="controls">
-    <a class="btn btn-success btn-xs" ui-sref="packages.create"><span class="glyphicon glyphicon-plus"></span></a>
-  </div>
+<div class="controls">
+  <a class="btn btn-success btn-xs" ui-sref="packages.create"><span class="glyphicon glyphicon-plus"></span></a>
+</div>
 
-  <table class="table">
-    <tr>
-      <th>ID</th>
-      <th>Name</th>
-      <th>Description</th>
-    </tr>
-    <tr ng-repeat="pkg in packages">
-      <td>{{pkg.id}}</td>
-      <td><a ui-sref="packages.detail({pkgId: pkg.id})">{{pkg.name}}</a></td>
-      <td>{{pkg.description}}</td>
-    </tr>
-  </table>
+<table class="table">
+  <tr>
+    <th>ID</th>
+    <th>Name</th>
+    <th>Description</th>
+  </tr>
+  <tr ng-repeat="pkg in packages">
+    <td>{{pkg.id}}</td>
+    <td><a ui-sref="packages.detail({pkgId: pkg.id})">{{pkg.name}}</a></td>
+    <td>{{pkg.description}}</td>
+  </tr>
+</table>

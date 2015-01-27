@@ -1,7 +1,7 @@
 'use strict';
 /*jshint esnext: true */
 
-class PackageVersionCtrl {
+class ReleaseCtrl {
   constructor ($scope, $http, $stateParams) {
     $scope.params = $stateParams;
     $http.get('/packages/' + $stateParams.pkgId).success(function(result) {
@@ -11,6 +11,6 @@ class PackageVersionCtrl {
 }
 
 
-PackageVersionCtrl.$inject = ['$scope', '$http', '$stateParams'];
+ReleaseCtrl.$inject = ['$scope', '$http', '$stateParams'];
 
-export default PackageVersionCtrl;
+export default ReleaseCtrl;

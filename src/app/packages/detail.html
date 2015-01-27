@@ -1,5 +1,4 @@
 <div class="row">
-
   <div class="col-md-8" id="pkg-top">
     <h1>Package: {{pkg.name}}</h1>
   </div>
@@ -67,9 +66,8 @@
   </div>
 
   <div class="col-md-4">
-    <h3>Releases</h3>
-    <div ng-repeat="release in pkg.releases">
-      <a ui-sref="packages.version({pkgId: pkg.id, pkgVersion: release.version})">{{release.version}}</a>
-    </div>
+    <h3>Releases <a class="btn btn-success btn-xs" ui-sref="packages.detail.releaseCreate({pkgId: pkg.id})"><b class="glyphicon glyphicon-plus"></b></a></h3>
+    <span ng-show="releases.length == 0">No releases yet...</span>
+    <div ng-repeat="release in releases">{{release.version}}</div>
   </div>
 </div>

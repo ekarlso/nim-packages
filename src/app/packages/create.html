@@ -13,13 +13,11 @@
   <div class="form-group">
     <label for="license">License</label>
 
-    <ui-select id="license" title="Please select a License" theme="bootstrap" ng-model="license">
-      <ui-select-match placeholder="Select license">{{$select.selected.name}}</ui-select-match>
-      <ui-select-choices repeat="l in licenses">
-        {{l.name}}
-      </ui-select-choices>
+    <select class="form-control" ng-model="pkg.license">
+      <option ng-repeat="lic in licenses">{{lic.name}}</option>
     </select>
   </div>
+  License {{license}}<br>
 
   <div class="form-group">
     <label for="description">Description</label>
@@ -31,15 +29,9 @@
     <input type="text" class="form-control" placeholder="Home webpage of the package" ng-model="pkg.web" aria-describedby="webpage">
   </div>
 
-  <div class="form-group">
-    <ui-select multiple tagging tagging-label="false" ng-model="pkg.tags" theme="bootstrap" ng-disabled="disabled" style="width: 600px;" title="Choose your tags">
-      <ui-select-match placeholder="Select tags.">{{$item}}</ui-select-match>
-      <ui-select-choices repeat="tag in tags | filter:$select.search">
-        {{tag}}
-      </ui-select-choices>
-    </ui-select>
-    <p>Selected: {{pkg.tags}}</p>
-    <hr>
-  </div>
+  <tags-input ng-model="tags">
+    <auto-complete source="getTags($query)"></auto-complete>
+  </tags-input>
+
   <button type="submit" class="btn btn-success" ng-click="submit()"><span class="glyphicon glyphicon-ok"></span> Submit</button>
 </form>

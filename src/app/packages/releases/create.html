@@ -1,0 +1,25 @@
+<h1>Create Release</h1>
+<form name="releaseForm">
+  <div class="form-group">
+    <label for="version">Release version</label>
+    <input type="text" class="form-control" id="version" placeholder="Version (Example: 0.0.1)" ng-model="release.version" required>
+  </div>
+
+  <div class="form-group">
+    <label for="uri">URI</label>
+    <input type="text" class="form-control" id="uri" placeholder="URI (Example: http://github.com/jdoe/foo)" ng-model="release.uri" required>
+  </div>
+
+  <div class="form-group">
+    <label for="method">Download method</label>
+
+    <select name="method" class="form-control" ng-model="release.method" required>
+      <option ng-repeat="method in methods">{{method}}</option>
+    </select>
+    <span ng-show="releaseForm.method.$error.required">Select a method<br></span>
+  </div>
+
+  <button type="submit" class="btn btn-success" ng-click="submit()"><span class="glyphicon glyphicon-ok"></span> Submit</button>
+</form>
+
+{{release}}

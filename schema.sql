@@ -13,19 +13,19 @@ CREATE TABLE packages (
 CREATE TABLE releases (
     id      INTEGER PRIMARY KEY AUTOINCREMENT
                     NOT NULL,
-    pkg_id  INTEGER NOT NULL,
+    package_id  INTEGER NOT NULL,
     version TEXT    NOT NULL,
     method  TEXT    NOT NULL,
     uri     TEXT    NOT NULL,
-    FOREIGN KEY ( pkg_id )
+    FOREIGN KEY ( package_id )
         REFERENCES packages ( id )
         ON DELETE CASCADE
 );
 
 CREATE TABLE packages_tags (
-    pkg_id INTEGER NOT NULL,
+    package_id INTEGER NOT NULL,
     tag_id INTEGER NOT NULL,
-    FOREIGN KEY ( pkg_id )
+    FOREIGN KEY ( package_id )
         REFERENCES packages ( id )
         ON DELETE CASCADE
 );
