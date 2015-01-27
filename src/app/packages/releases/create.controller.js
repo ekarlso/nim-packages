@@ -21,6 +21,6 @@ class CreateReleaseCtrl {
   }
 }
 
-CreateReleaseCtrl.$inject = ['$scope', '$state', '$stateParams', '$http', 'pkgId'];
+CreateReleaseCtrl.$inject = ['$scope', '$state', '$stateParams', '$http'];
 
 export default CreateReleaseCtrl;
