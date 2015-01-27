@@ -56,3 +56,8 @@ This will start a development server that will proxy all calls to the backend
 *nim* service on port *5000*. It will also build the app.
 
 gulp serve
+
+# Example usage
+http --verify=no post https://nim-pkg.svcs.io/auth/signup email=john@doe.name password=secret displayName="John Doe"
+http --verify=no post https://nim-pkg.svcs.io/auth/login email=john@doe.name password=secret
+
