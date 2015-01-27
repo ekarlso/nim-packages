@@ -86,6 +86,9 @@ if not cfg.hasKey("secret"):
 if not cfg.hasKey("github_secret"):
   quit("Missing 'github_secret' setting")
 
+if not cfg.hasKey("url"):
+  quit("Missing 'url' setting")
+
 const
     GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
     GITHUB_USERS_API_URL = "https://api.github.com/user"
@@ -170,6 +173,7 @@ proc isValidPackageName(name: string) =
     if name =~ re".*\@.*":
         let msg = "'@' is not allowed in package name."
         raise newHttpExc(Http400, msg)
+    if
 
 
 proc connect(): TDBConn =
@@ -255,7 +259,7 @@ proc deleteLicense(conn: TDBConn, name: string): int64 =
 proc setPackageTags(conn: TDBConn, package: Package) =
     # Set tags to whatever package.tags is.
 
-    let newTags = newTable[string, Tag](package.tags.map((s: string) => getOrCreateTag(conn, s)).map((t: Tag) => (t.name, t)))
+    let newTags = newTable[string, Tag](package.tags.map((s: string) => getOrCreateTag(conn, s.toLower)).map((t: Tag) => (t.name, t)))
     let oldTags = newTable[string, Tag](getTagsByPackage(conn, package.id).map((t: Tag) => (t.name, t)))
 
     # Create
@@ -481,7 +485,7 @@ proc createToken(user: User): JsonNode =
     exp = iat + expire
     claims = %{
       "sub": %user.email,
-      "iss": %"package",
+      "iss": %cfg["url"],
       "iat": %iat,
       "nbf": %iat,
       "exp": %exp
@@ -505,13 +509,19 @@ proc createToken(user: User): JsonNode =
 proc verifyToken(token: JWT) =
   var secret = cfg["secret"].str
   if not token.verify(secret):
+    echo("ERROR: Token invalid")
     raise newHttpExc(Http401, "Invalid token")
 
 
-proc unpackToken(header: string): JWT =
-  let parts = header.split(" ")
-  if not parts.len == 2:
+proc unpackToken(headers: StringTableRef): JWT =
+  if not headers.hasKey("Authorization"):
     raise newHttpExc(Http401, "Invalid Authorization header.")
+
+  let parts = headers["Authorization"].split(" ")
+  if parts.len != 2:
+    echo("ERROR: Token parts was not 2")
+    raise newHttpExc(Http401, "Invalid Authorization header.")
+
   let tokenB64 = $parts[1]
   result = tokenB64.toJWT
 
@@ -536,7 +546,7 @@ routes:
         resp($jarray, "application/json")
 
     post "/licenses":
-        var token = unpackToken(request.headers["Authorization"])
+        var token = unpackToken(request.headers)
         verifyToken(token)
 
         var
@@ -565,7 +575,7 @@ routes:
         resp(Http201, headers, $obj)
 
     post "/licenses/@licenseName/delete":
-        var token = unpackToken(request.headers["Authorization"])
+        var token = unpackToken(request.headers)
         verifyToken(token)
 
         let
@@ -651,7 +661,7 @@ routes:
         resp($obj, "application/json")
 
     post "/packages":
-        var token = unpackToken(request.headers["Authorization"])
+        var token = unpackToken(request.headers)
         verifyToken(token)
 
         let
@@ -682,7 +692,7 @@ routes:
         resp(Http201, headers, $obj)
 
     post "/packages/@packageId/releases":
-        var token = unpackToken(request.headers["Authorization"])
+        var token = unpackToken(request.headers)
         verifyToken(token)
 
         let
@@ -858,7 +868,7 @@ routes:
     get "/profile":
         var
             user: User
-            token = unpackToken(request.headers["Authorization"])
+            token = unpackToken(request.headers)
 
         verifyToken(token)
 
