@@ -28,7 +28,7 @@ import CreateReleaseCtrl from './packages/releases/create.controller';
 
 import AccountService from './services/account';
 
-angular.module('nimPackages', ['ui.router', 'mgcrea.ngStrap', 'satellizer', 'ngMessages', 'ngTagsInput'])
+angular.module('nimPackages', ['ui.router', 'mgcrea.ngStrap', 'satellizer', 'ngTagsInput'])
   .controller('MainCtrl', MainCtrl)
   .controller('NavbarCtrl', NavbarCtrl)
   .service('$profile', AccountService)
