@@ -91,6 +91,11 @@ const
     GITHUB_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
     GITHUB_USERS_API_URL = "https://api.github.com/user"
 
+let
+  staticDir =  if cfg.hasKey("static_dir"): cfg["static_dir"].str else: getCurrentDir() & "/dist"
+  port = if cfg.hasKey("port") and cfg["port"].kind == JInt: cfg["port"].num else: 5000
+  tokenExpireTime = if cfg.hasKey("token_expire_seconds"): cfg["token_expire_seconds"].num else: 7200
+
 
 proc assertFound(row: TRow) =
     if row[0] == "":
@@ -474,17 +479,17 @@ proc errorJObject(code: HttpCode, msg: string): JsonNode =
 
 
 # Create JWT token
-proc createToken(user: User, expire: int = 7200, extraClaims: JsonNode = newJObject()): JsonNode =
+proc createToken(user: User, extraClaims: JsonNode = newJObject()): JsonNode =
   var
     secret = cfg["secret"].str
     jti: Tuuid
     iat = times.toSeconds(times.getTime()).int
-    exp = iat + expire
+    exp = iat + tokenExpireTime
 
     # Typical claims.
     claims = %{
       "sub": %user.email,
-      "iss": %"foo",
+      "iss": cfg["url"],
       "iat": %iat,
       "nbf": %iat,
       "exp": %exp
@@ -498,8 +503,6 @@ proc createToken(user: User, expire: int = 7200, extraClaims: JsonNode = newJObj
   for key, val in extraClaims:
     claims[key] = val
 
-  echo("Claims $#" % $claims)
-
   uuid.uuid_generate_random(jti)
   claims["jti"] = %jti.toHex
 
@@ -510,7 +513,7 @@ proc createToken(user: User, expire: int = 7200, extraClaims: JsonNode = newJObj
   result = %{"token": %token}
 
 
-proc verifyToken(token: var JWT) =
+proc verifyToken(token: JWT) =
   var secret = cfg["secret"].str
 
   if not token.verify(secret):
@@ -534,10 +537,6 @@ proc unpackToken(headers: StringTableRef): JWT =
 echo("Connecting to DB")
 var db = connect()
 db_sqlite.exec(db, db_sqlite.sql("PRAGMA foreign_keys = ON;"))
-
-let
-  staticDir =  if cfg.hasKey("static_dir"): cfg["static_dir"].str else: getCurrentDir() & "/dist"
-  port = if cfg.hasKey("port") and cfg["port"].kind == JInt: cfg["port"].num else: 5000
 
 var settings = newSettings(staticDir = staticDir, port = Port(port))
 
@@ -878,9 +877,11 @@ routes:
         resp(Http200, $data)
 
     post "/auth/tokens":
-        var
+        let
             token = unpackToken(request.headers)
             body = parseJson($request.body)
+            userEmail = token.claims["sub"].node.str
+            headers = {"content-type": "application/json"}
 
         verifyToken(token)
 
@@ -890,13 +891,13 @@ routes:
             requestedClaims = body["claims"]
             validClaims = @["exp", "pkg"]
 
-        for claim in requestedClaims:
-            echo($claim)
+        user = getUser(db, userEmail)
+        for key, value in requestedClaims:
+            if key notin validClaims:
+                raise newHttpExc(Http400, "Claim $# is not allowed." % key)
 
-        let sub = token.claims["sub"].node
-        user = getUser(db, sub.str)
-
-        createdToken = createToken(user)
+        createdToken = createToken(user, requestedClaims)
+        resp(Http200, headers, $createdToken)
 
     get "/profile":
         var

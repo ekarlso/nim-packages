@@ -29,10 +29,11 @@ import CreateReleaseCtrl from './packages/releases/create.controller';
 
 import AccountService from './services/account';
 
-angular.module('nimPackages', ['ui.router', 'mgcrea.ngStrap', 'satellizer', 'ngTagsInput'])
+angular.module('nimPackages', ['ui.router', 'ngSanitize', 'mgcrea.ngStrap', 'satellizer', 'ngTagsInput'])
   .controller('MainCtrl', MainCtrl)
   .controller('NavbarCtrl', NavbarCtrl)
   .service('$profile', AccountService)
+  .directive('packageName', PackageNameValidator)
 
   .config(function ($stateProvider, $urlRouterProvider, $authProvider) {
     $stateProvider
@@ -66,7 +67,7 @@ angular.module('nimPackages', ['ui.router', 'mgcrea.ngStrap', 'satellizer', 'ngT
         url: '/tokens',
         views: {
           "content": {
-            templateUrl: '/app/profile/tokens.html',
+            templateUrl: 'app/profile/tokens.html',
             controller: TokenCtrl
           }
         }

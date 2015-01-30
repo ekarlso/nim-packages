@@ -5,20 +5,33 @@
     <form name="requestToken" class="form-horizontal">
       <div class="form-group">
         <label class="control-label">Expire</label>
-        <input class="form-control" type="datetime-local" ng-model="expire" min="{{minDate | date:'yyyy-MM-ddTHH:mm':'UTC'}}" ng-model-options="{ timezone: 'UTC' }" ng-change="setSeconds()">
+        <input class="form-control" name="expire" type="datetime-local" ng-model="expire" min="{{minDate | date:'yyyy-MM-ddTHH:mm':'UTC'}}" ng-model-options="{ timezone: 'UTC' }" required>
 
-        <span class="error" ng-show="myForm.input.$error.required">Required!</span>
-        <span class="error" ng-show="myForm.input.$error.datetimelocal">Not a valid date!</span>
+        <span class="error" ng-show="requestToken.expire.$error.required">Required!</span>
+        <span class="error" ng-show="requestToken.expire.$error.datetimelocal">Not a valid date!</span>
       </div>
 
       <div class="form-group">
         <label class="control-label">Package</label>
-        <input class="form-control" type="text" ng-model="claims.pkg" placeholder="Package to scope to" typeahead="pkg for pkgs in getPackages($viewValue)" typeahead-loading="loadingPackages" typeahead-min-length="1" typeahead-wait-ms="10">
-        <i ng-show="loadingPackages" class="glyphicon glyphicon-refresh"></i>
+        <input
+          class="form-control"
+          type="text"
+          ng-model="package"
+          data-min-length="2"
+          placeholder="Package to scope to token to"
+          bs-typeahead ng-options="pkg.name as pkg.name for pkg in getPackages($viewValue)"
+          package-name>
+        <!--i ng-show="loadingPackages" class="glyphicon glyphicon-refresh"></i-->
       </div>
 
-      {{claims}}
-      <button class="btn btn-success btn-sm" ng-click="requestToken()">Request token</button>
+      <button class="btn btn-success btn-sm" ng-click="submit()">Submit</button>
     </form>
+  </div>
+
+  <div class="row" ng-repeat="token in tokens">
+    <div class="install">
+      <div class="action">Setup nimble</div>
+      <code>nimble login "{{token.token}}"</code>
+    </div>
   </div>
 </div>
