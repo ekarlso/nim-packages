@@ -33,7 +33,6 @@ angular.module('nimPackages', ['ui.router', 'ngSanitize', 'mgcrea.ngStrap', 'sat
   .controller('MainCtrl', MainCtrl)
   .controller('NavbarCtrl', NavbarCtrl)
   .service('$profile', AccountService)
-  .directive('packageName', PackageNameValidator)
 
   .config(function ($stateProvider, $urlRouterProvider, $authProvider) {
     $stateProvider
