@@ -25,11 +25,10 @@ import PackageDetailCtrl from './packages/detail.controller';
 
 // Releases
 import CreateReleaseCtrl from './packages/releases/create.controller';
-import ReleaseCtrl from './packages/release.controller';
 
 import AccountService from './services/account';
 
-angular.module('nimPackages', ['ui.router', 'ui.bootstrap', 'satellizer', 'ngMessages', 'ngTagsInput'])
+angular.module('nimPackages', ['ui.router', 'mgcrea.ngStrap', 'satellizer', 'ngMessages', 'ngTagsInput'])
   .controller('MainCtrl', MainCtrl)
   .controller('NavbarCtrl', NavbarCtrl)
   .service('$profile', AccountService)

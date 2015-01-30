@@ -1,4 +1,4 @@
-<nav class="navbar navbar-static-top navbar-inverse" ng-controller="NavbarCtrl">
+<div class="navbar navbar-static-top navbar-inverse" ng-controller="NavbarCtrl" bs-navbar>
   <div class="container-fluid">
     <div class="navbar-header">
       <a class="navbar-brand" href="http://packages.nim-lang.org">
@@ -12,25 +12,32 @@
         <li class="active"><a ui-sref="packages.list">Packages</a></li>
         <li class="active"><a ui-sref="tags.list">Tags</a></li>
 
-        <li class="dropdown" dropdown ng-show="authed">
-          <a href="#" class="dropdown-toggle" dropdown-toggle>Admin <b class="caret"></b></a>
-          <ul class="dropdown-menu">
-            <li><a ui-sref="admin.licenses">Licenses</a></li>
-          </ul>
+        <li class="dropdown" ng-show="authed">
+          <a href="#" class="dropdown-toggle" bs-dropdown data-template="admin-template">Admin <b class="caret"></b></a>
+
+          <script type="text/ng-template" id="admin-template">
+            <ul class="dropdown-menu">
+              <li><a ui-sref="admin.licenses">Licenses</a></li>
+            </ul>
+          </script>
         </li>
-
-
       </ul>
+
       <ul class="nav navbar-nav navbar-right">
         <li ng-show="!authed"><a ui-sref="login">Login</a></li>
+
+        <!-- Logged in menu menu -->
         <li class="dropdown" dropdown ng-show="authed">
-          <a href="#" class="dropdown-toggle" dropdown-toggle>{{user.displayName}} <b class="caret"></b> </a>
-          <ul class="dropdown-menu">
-            <li><a ui-sref="profile">Profile</a></li>
-            <li><a ui-sref="logout">Logout</a></li>
-          </ul>
+          <a href="#" class="dropdown-toggle" bs-dropdown data-template="user-template">{{user.displayName}} <b class="caret"></b> </a>
+
+          <script type="text/ng-template" id="user-template">
+            <ul class="dropdown-menu">
+              <li><a ui-sref="profile">Profile</a></li>
+              <li><a ui-sref="logout">Logout</a></li>
+            </ul>
+          </script>
         </li>
       </ul>
     </div>
   </div>
-</nav>
+</div>
