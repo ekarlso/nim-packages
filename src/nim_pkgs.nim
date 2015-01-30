@@ -18,7 +18,7 @@ type
         id: int64
         version: string
         uri: string
-        downMethod: string
+        downloadMethod: string
 
     Package = object
         id: int64
@@ -294,14 +294,14 @@ proc getPackageReleases(conn: TDBConn, packageId: int64): seq[Release] =
         let release = Release(
             version: $row[2],
             uri: $row[3],
-            downMethod: $row[4]
+            downloadMethod: $row[4]
         )
         result.add(release)
 
 
 proc createRelease(conn: TDBConn, packageId: int64, release: var Release) =
     let query = sql("INSERT INTO releases (package_id, version, method, uri) VALUES (?, ?, ?, ?)")
-    release.id = insertId(conn, query, $packageId, release.version, release.downMethod, release.uri)
+    release.id = insertId(conn, query, $packageId, release.version, release.downloadMethod, release.uri)
 
 
 proc populatePackageData(conn: TDBConn, package: var Package) =
@@ -380,14 +380,14 @@ proc `%`(r: Release): JsonNode =
     result = newJObject()
     result["version"] = %r.version
     result["uri"] = %r.uri
-    result["method"] = %r.downMethod
+    result["method"] = %r.downloadMethod
 
 
 proc jsonToRelease(j: JsonNode): Release =
     checkKeys(j, "method", "version", "uri")
 
     result = Release(
-        downMethod: j["method"].str,
+        downloadMethod: j["method"].str,
         version: j["version"].str,
         uri: j["uri"].str
     )
@@ -682,7 +682,6 @@ routes:
             user: User
             ec: HttpCode = Http500
             emsg: string
-
 
         try:
             user = getUser(db, userEmail)
