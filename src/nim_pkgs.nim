@@ -173,7 +173,6 @@ proc isValidPackageName(name: string) =
     if name =~ re".*\@.*":
         let msg = "'@' is not allowed in package name."
         raise newHttpExc(Http400, msg)
-    if
 
 
 proc connect(): TDBConn =
