@@ -43,7 +43,7 @@
 
       <div ng-show="pkg.tags">
         <h3>Tags</h3>
-        <span ng-repeat="tag in pkg.tags"><a ui-sref="tags.packages({tagName: tag})">{{tag}}</a> </span>
+        <span ng-repeat="tag in pkg.tags | orderBy"><a ui-sref="tags.packages({tagName: tag})">{{tag}}</a><br/></span>
       </div>
 
       <div>
