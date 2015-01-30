@@ -1,3 +1,7 @@
 $icon-font-path: "../../bower_components/bootstrap-sass-official/assets/fonts/bootstrap/";
 
 @import '../../bower_components/bootstrap-sass-official/assets/stylesheets/bootstrap';
+
+.datetime-picker div > table .btn-default {
+    border: 0;
+}

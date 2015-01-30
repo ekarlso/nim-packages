@@ -1,0 +1,24 @@
+<div>
+  <h3>Tokens <button class="btn btn-primary btn-sm" ng-click="tokenFormToggle()">New</button></h3>
+
+  <div ng-show="tokenFormOpen">
+    <form name="requestToken" class="form-horizontal">
+      <div class="form-group">
+        <label class="control-label">Expire</label>
+        <input class="form-control" type="datetime-local" ng-model="expire" min="{{minDate | date:'yyyy-MM-ddTHH:mm':'UTC'}}" ng-model-options="{ timezone: 'UTC' }" ng-change="setSeconds()">
+
+        <span class="error" ng-show="myForm.input.$error.required">Required!</span>
+        <span class="error" ng-show="myForm.input.$error.datetimelocal">Not a valid date!</span>
+      </div>
+
+      <div class="form-group">
+        <label class="control-label">Package</label>
+        <input class="form-control" type="text" ng-model="claims.pkg" placeholder="Package to scope to" typeahead="pkg for pkgs in getPackages($viewValue)" typeahead-loading="loadingPackages" typeahead-min-length="1" typeahead-wait-ms="10">
+        <i ng-show="loadingPackages" class="glyphicon glyphicon-refresh"></i>
+      </div>
+
+      {{claims}}
+      <button class="btn btn-success btn-sm" ng-click="requestToken()">Request token</button>
+    </form>
+  </div>
+</div>

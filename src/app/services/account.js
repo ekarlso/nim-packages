@@ -2,7 +2,7 @@
 /*jshint esnext: true */
 
 class AccountService {
-  constructor ($http) {
+  constructor ($http, $auth) {
     this.user = null;
 
     this.getUser = function() {

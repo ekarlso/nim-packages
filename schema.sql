@@ -5,7 +5,6 @@ CREATE TABLE packages (
     name        VARCHAR(100)    NOT NULL,
     description TEXT,
     web         TEXT            NOT NULL,
-    maintainer  TEXT            NOT NULL,
     FOREIGN KEY ( license )
         REFERENCES licenses ( name )
 );
@@ -25,6 +24,15 @@ CREATE TABLE releases (
 CREATE TABLE packages_tags (
     package_id INTEGER NOT NULL,
     tag_id INTEGER NOT NULL,
+    FOREIGN KEY ( package_id )
+        REFERENCES packages ( id )
+        ON DELETE CASCADE
+);
+
+CREATE TABLE packages_users (
+    package_id     INTEGER NOT NULL,
+    user_id         INTEGER NOT NULL,
+    kind            VARCHAR(50),
     FOREIGN KEY ( package_id )
         REFERENCES packages ( id )
         ON DELETE CASCADE

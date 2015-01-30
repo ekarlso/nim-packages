@@ -5,11 +5,10 @@ from asynchttpserver import Http404
 from httpclient import newAsyncHttpClient, get, getContent
 
 import docopt
+import jwt
+import uuid
 
 from times import nil
-
-import jwt
-
 
 type
     DbError = object of Exception
@@ -26,7 +25,6 @@ type
         name: string
         description: string
         web: string
-        maintainer: string
         license: string
         tags: seq[string]
 
@@ -104,8 +102,7 @@ proc rowToPackage(row: TRow): Package =
         id: parseInt($row[0]),
         name: $row[1],
         web: $row[3],
-        maintainer: $row[4],
-        license: $row[5]
+        license: $row[4]
     )
     if $row[1] != nil:
         result.description = $row[2]
@@ -177,6 +174,12 @@ proc isValidPackageName(name: string) =
 
 proc connect(): TDBConn =
     return db_sqlite.open("packages.sqlite", "nim_pkgs", "nim_pkgs", "nim_pkgs")
+
+
+proc getUser(conn: TDBConn, email: string): User =
+    let query = sql("SELECT id, email, password, display_name, github FROM users WHERE email = ?")
+    let row = getRow(conn, query, email)
+    result = rowToUser(row)
 
 
 proc getTags(conn: TDBConn): seq[Tag] =
@@ -304,11 +307,13 @@ proc populatePackageData(conn: TDBConn, package: var Package) =
             package.tags.add(tag.name)
 
 
-proc createPackage(conn: TDBConn, package: var Package) =
-    let query = db_sqlite.sql("INSERT INTO packages (name, description, license, web, maintainer) VALUES (?, ?, ?, ?, ?)")
+proc createPackage(conn: TDBConn, package: var Package, owner: User) =
+    let query = db_sqlite.sql("INSERT INTO packages (name, description, license, web) VALUES (?, ?, ?, ?)")
 
-    let id = db_sqlite.insertId(conn, query, package.name, package.description, package.license, package.web, package.maintainer)
+    let id = db_sqlite.insertId(conn, query, package.name, package.description, package.license, package.web, package)
     package.id = id
+
+    discard db_sqlite.insertId(conn, db_sqlite.sql("INSERT INTO packages_users (package_id, user_id, kind) VALUES(?, ?, ?)"), $package.id, $owner.id, "admin")
 
     if package.tags != nil:
         setPackageTags(conn, package)
@@ -317,15 +322,14 @@ proc createPackage(conn: TDBConn, package: var Package) =
 proc getPackages(conn: TDBConn): seq[Package] =
     result = newSeq[Package]()
 
-    let query = db_sqlite.sql("SELECT id, name, description, license, web, maintainer FROM packages")
+    let query = db_sqlite.sql("SELECT id, name, description, license, web FROM packages")
 
     for row in db_sqlite.rows(conn, query):
         var package = Package(
             id: parseInt($row[0]),
             name: $row[1],
             license: $row[3],
-            web: $row[4],
-            maintainer: $row[5],
+            web: $row[4]
         )
 
         if $row[2] != nil:
@@ -337,7 +341,7 @@ proc getPackages(conn: TDBConn): seq[Package] =
 
 proc getPackage(conn: TDBConn, packageId: int = -1, packageName: string = ""): Package =
     var
-        st = "SELECT id, name, description, license, web, maintainer FROM packages WHERE "
+        st = "SELECT id, name, description, license, web FROM packages WHERE "
         filters = newSeq[string]()
 
     if packageName != nil:
@@ -357,8 +361,7 @@ proc getPackage(conn: TDBConn, packageId: int = -1, packageName: string = ""): P
         id: parseInt($row[0]),
         name: $row[1],
         license: $row[3],
-        web: $row[4],
-        maintainer: $row[5],
+        web: $row[4]
     )
 
     if $row[2] != nil:
@@ -366,11 +369,6 @@ proc getPackage(conn: TDBConn, packageId: int = -1, packageName: string = ""): P
 
     populatePackageData(conn, result)
 
-
-proc getUser(conn: TDBConn, email: string): User =
-    let query = sql("SELECT id, email, password, display_name, github FROM users WHERE email = ?")
-    let row = getRow(conn, query, email)
-    result = rowToUser(row)
 
 
 proc `%`(r: Release): JsonNode =
@@ -404,7 +402,6 @@ proc `%`(package: Package): JsonNode =
     result["name"] = %package.name
     result["license"] = %package.license
     result["web"] = %package.web
-    result["maintainer"] = %package.maintainer
 
     if package.description != nil:
         result["description"] = %package.description
@@ -416,14 +413,13 @@ proc `%`(package: Package): JsonNode =
 
 
 proc jsonToPackage(j: JsonNode): Package =
-    checkKeys(j, "name", "license", "web", "maintainer")
+    checkKeys(j, "name", "license", "web")
     isValidPackageName(j["name"].str)
 
     result = Package(
         name: j["name"].str,
         license: j["license"].str,
-        web: j["web"].str,
-        maintainer: j["maintainer"].str
+        web: j["web"].str
     )
 
     if j.hasKey("description"):
@@ -466,6 +462,7 @@ proc `%`(user: User): JsonNode =
     result = newJObject()
     result["displayName"] = %user.displayName
     result["email"] = %user.email
+    result["id"] = %user.id
 
 
 proc errorJObject(code: HttpCode, msg: string): JsonNode =
@@ -477,14 +474,17 @@ proc errorJObject(code: HttpCode, msg: string): JsonNode =
 
 
 # Create JWT token
-proc createToken(user: User): JsonNode =
-  let
-    expire = 7200
+proc createToken(user: User, expire: int = 7200, extraClaims: JsonNode = newJObject()): JsonNode =
+  var
+    secret = cfg["secret"].str
+    jti: Tuuid
     iat = times.toSeconds(times.getTime()).int
     exp = iat + expire
+
+    # Typical claims.
     claims = %{
       "sub": %user.email,
-      "iss": %cfg["url"],
+      "iss": %"foo",
       "iat": %iat,
       "nbf": %iat,
       "exp": %exp
@@ -495,18 +495,24 @@ proc createToken(user: User): JsonNode =
       "typ": %"JWT"
     }
 
-    tJson = %{"header": headers, "claims": claims}
+  for key, val in extraClaims:
+    claims[key] = val
 
-  var
-    token = jwt.toJWT(tJson)
-    secret = cfg["secret"].str
+  echo("Claims $#" % $claims)
 
-  token.signature = jwt.sign(token, secret)
+  uuid.uuid_generate_random(jti)
+  claims["jti"] = %jti.toHex
+
+  let t = %{"header": headers, "claims": claims}
+  var token = jwt.toJWT(t)
+
+  jwt.sign(token, secret)
   result = %{"token": %token}
 
 
-proc verifyToken(token: JWT) =
+proc verifyToken(token: var JWT) =
   var secret = cfg["secret"].str
+
   if not token.verify(secret):
     echo("ERROR: Token invalid")
     raise newHttpExc(Http401, "Invalid token")
@@ -591,7 +597,7 @@ routes:
             queryKey: string
             queryVal: string
             query: TSqlQuery
-            statement: string = "SELECT p.id, p.name, p.description, p.license, p.web, p.maintainer FROM packages AS p"
+            statement: string = "SELECT p.id, p.name, p.description, p.license, p.web FROM packages AS p"
 
         for k, v in request.params.pairs:
             if queryKey == nil:
@@ -604,6 +610,10 @@ routes:
         case queryKey:
             of "tag":
                 statement &= " LEFT JOIN packages_tags ON p.id = packages_tags.package_id INNER JOIN tags ON packages_tags.tag_id = tags.id WHERE tags.name = ?"
+                query = sql(statement)
+                dbRows = toSeq(rows(db, query, queryVal))
+            of "user_id":
+                statement &= " LEFT JOIN packages_users ON p.id = packages_users.package_id INNER JOIN users ON packages_users.user_id = users.id WHERE users.id = ?"
                 query = sql(statement)
                 dbRows = toSeq(rows(db, query, queryVal))
             of nil:
@@ -666,15 +676,19 @@ routes:
         let
             body = parseJson($request.body)
             headers = {"content-type": "application/json"}
+            userEmail = token.claims["sub"].node.str
 
         var
             package: Package
+            user: User
             ec: HttpCode = Http500
             emsg: string
 
+
         try:
+            user = getUser(db, userEmail)
             package = jsonToPackage(body)
-            createPackage(db, package)
+            createPackage(db, package, user)
         except HTTPException:
             let e = (ref HTTPException)(getCurrentException())
             ec = e.code
@@ -788,8 +802,9 @@ routes:
         let query = sql("INSERT INTO users (email, password, display_name) VALUES (?, ?, ?)")
         user.id = insertId(db, query, user.email, hashed, user.displayName)
 
-        let token = createToken(user)
-        resp(Http200, $token)
+        var data = createToken(user)
+        data["user"] = %user
+        resp(Http200, $data)
 
     post "/auth/login":
         let
@@ -809,8 +824,6 @@ routes:
 
         data = createToken(user)
         data["user"] = %user
-        resp(Http200, $data)
-
         resp(Http200, $data)
 
     post "/auth/github":
@@ -863,6 +876,27 @@ routes:
         data = createToken(user)
         data["user"] = %user
         resp(Http200, $data)
+
+    post "/auth/tokens":
+        var
+            token = unpackToken(request.headers)
+            body = parseJson($request.body)
+
+        verifyToken(token)
+
+        var
+            user: User
+            createdToken: JsonNode
+            requestedClaims = body["claims"]
+            validClaims = @["exp", "pkg"]
+
+        for claim in requestedClaims:
+            echo($claim)
+
+        let sub = token.claims["sub"].node
+        user = getUser(db, sub.str)
+
+        createdToken = createToken(user)
 
     get "/profile":
         var

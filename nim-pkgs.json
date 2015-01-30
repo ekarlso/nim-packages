@@ -1,5 +1,6 @@
 {
     "secret": "secret",
     "github_secret": "gh_secret",
+    "url": "http://localhost:5000",
     "port": 5000
 }

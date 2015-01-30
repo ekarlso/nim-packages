@@ -1,4 +1,15 @@
 <div class="container">
   <div ng-include="'components/navbar/navbar.html'"></div>
-  <h1>Hi {{user.displayName}}!</h1>
+
+  <div class="row">
+    <div class="col-md-2">
+      <h3>{{user.displayName}}</h3>
+
+      <ul class="nav nav-pills nav-stacked">
+        <li ng-class="{ active: $state.includes('profile.tokens') }"><a ui-sref="profile.tokens">Tokens</a></li>
+      </ul>
+    </div>
+
+    <div class="col-md-6" ui-view="content"></div>
+  </div>
 </div>

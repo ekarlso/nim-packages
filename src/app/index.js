@@ -10,6 +10,7 @@ import LogoutCtrl from './auth/logout.controller';
 import SignupCtrl from './auth/signup.controller';
 
 import ProfileCtrl from './profile/index.controller';
+import TokenCtrl from './profile/token.controller'
 
 // Admin stuff
 import CreateLicenseCtrl from './admin/licenses/create.controller';
@@ -60,6 +61,15 @@ angular.module('nimPackages', ['ui.router', 'mgcrea.ngStrap', 'satellizer', 'ngT
         url: '/profile',
         templateUrl: 'app/profile/index.html',
         controller: ProfileCtrl
+      })
+      .state('profile.tokens', {
+        url: '/tokens',
+        views: {
+          "content": {
+            templateUrl: '/app/profile/tokens.html',
+            controller: TokenCtrl
+          }
+        }
       })
 
       .state('packages', {
@@ -148,4 +158,6 @@ angular.module('nimPackages', ['ui.router', 'mgcrea.ngStrap', 'satellizer', 'ngT
     });
       //redirectUri: "https://npm-pkg.svcs.io:8080/index.html"});
   })
-;
+  .run(["$rootScope", "$state", function ($rootScope, $state) {
+    $rootScope.$state = $state;
+  }]);
