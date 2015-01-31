@@ -315,7 +315,7 @@ proc populatePackageData(conn: TDBConn, package: var Package) =
 proc createPackage(conn: TDBConn, package: var Package, owner: User) =
     let query = db_sqlite.sql("INSERT INTO packages (name, description, license, web) VALUES (?, ?, ?, ?)")
 
-    let id = db_sqlite.insertId(conn, query, package.name, package.description, package.license, package.web, package)
+    let id = db_sqlite.insertId(conn, query, package.name, package.description, package.license, package.web, package.web)
     package.id = id
 
     discard db_sqlite.insertId(conn, db_sqlite.sql("INSERT INTO packages_users (package_id, user_id, kind) VALUES(?, ?, ?)"), $package.id, $owner.id, "admin")
