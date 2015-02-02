@@ -102,6 +102,9 @@ proc assertFound(row: TRow) =
         raise newException(DbNotFound, "Row not found")
 
 
+
+
+
 proc rowToPackage(row: TRow): Package =
     result = Package(
         id: parseInt($row[0]),
@@ -139,9 +142,13 @@ proc rowToTag(row: TRow): Tag =
     )
 
 
-proc hash(x: Tag): THash =
-    result = x.name.hash
-    result = !$result
+proc mkFilters(col: string, values: string): string =
+    echo("mkFilters")
+    var filters = newSeq[string]()
+    for v in values.split(","):
+        let nf = "$# LIKE '%$#%'" % [col, v]
+        filters.add(nf)
+    result = join(filters, " OR ")
 
 
 template newHttpExc*(httpCode: HttpCode, message: string): expr =
@@ -592,35 +599,51 @@ routes:
     get "/packages":
         var
             packages = newSeq[Package]()
-            dbRows: seq[TRow]
-            queryKey: string
-            queryVal: string
-            query: TSqlQuery
             statement: string = "SELECT p.id, p.name, p.description, p.license, p.web FROM packages AS p"
 
+            queryKey: string
+            queryVal: string
+            filters = newSeq[string]()
+            joinFilters = @["tag", "user_id"]
+
+        echo("Parsing join filters")
         for k, v in request.params.pairs:
-            if queryKey == nil:
-                queryKey = k
-                queryVal = v
-            else:
-                let error = errorJObject(Http400, "Only one filter parameter currently allowed.")
-                halt(Http400, {"content-type": "application/json"}, $error)
+            if k in joinFilters:
+                if queryKey == nil:
+                    queryKey = k
+                    queryVal = v
+
+                else:
+                    let error = errorJObject(Http400, "Only one filter parameter currently allowed.")
+                    halt(Http400, {"content-type": "application/json"}, $error)
 
         case queryKey:
             of "tag":
-                statement &= " LEFT JOIN packages_tags ON p.id = packages_tags.package_id INNER JOIN tags ON packages_tags.tag_id = tags.id WHERE tags.name = ?"
-                query = sql(statement)
-                dbRows = toSeq(rows(db, query, queryVal))
+                statement &= " LEFT JOIN packages_tags ON p.id = packages_tags.package_id INNER JOIN tags ON packages_tags.tag_id = tags.id"
+                let tagFilters = mkFilters("tags.name", queryVal)
+                filters.add(tagFilters)
             of "user_id":
-                statement &= " LEFT JOIN packages_users ON p.id = packages_users.package_id INNER JOIN users ON packages_users.user_id = users.id WHERE users.id = ?"
-                query = sql(statement)
-                dbRows = toSeq(rows(db, query, queryVal))
+                statement &= " LEFT JOIN packages_users ON p.id = packages_users.package_id INNER JOIN users ON packages_users.user_id = users.id"
+                filters.add("users.id = $#" % queryVal)
             of nil:
-                query = sql(statement)
-                dbRows = toSeq(rows(db, query))
+                discard
             else:
                 let error = errorJObject(Http400, "Invalid query parameter $#" % queryKey)
                 halt(Http400, $error)
+
+        echo("Adding name filter")
+        if request.params.hasKey("name"):
+            let nameFilters = mkFilters("p.name", request.params["name"])
+            filters.add(nameFilters)
+
+        if filters.len >= 1:
+            statement &= " WHERE " & join(filters, " OR ")
+
+        echo($statement)
+        var
+            query = sql(statement)
+            dbRows = toSeq(rows(db, query))
+
 
         for row in dbRows:
             var package: Package = rowToPackage(row)
