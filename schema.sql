@@ -5,6 +5,7 @@ CREATE TABLE packages (
     name        VARCHAR(100)    NOT NULL,
     description TEXT,
     web         TEXT            NOT NULL,
+    repository  VARCHAR(100),
     FOREIGN KEY ( license )
         REFERENCES licenses ( name )
 );

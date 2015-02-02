@@ -61,11 +61,12 @@ for n in data:
             releaseJson = newJObject()
 
         echo("Package $# doesn't exist, creating" % name)
-        for i in @["name", "description", "license", "web", "maintainer", "tags"]:
+        for i in @["name", "description", "license", "web", "maintainer", "tags", "repository"]:
             if n.hasKey(i):
                 packageJson[i] = n[i]
             else:
                 packageJson[i] = %"N/A"
+            packageJson["repository"] = n["url"]
 
         let
             license = n["license"].str
@@ -80,14 +81,6 @@ for n in data:
 
         resp = httpclient.post(url & "/packages", headers, $packageJson)
         if not resp.status.startsWith("201"):
-            quit("Failed creating license... aborting")
-
-        releaseJson["method"] = n["method"]
-        releaseJson["uri"] = n["url"]
-        releaseJson["version"] = %"master"
-
-        resp = httpclient.post(url & "/packages/$#/releases" % name, headers, $releaseJson)
-        if resp.status.startsWith("400"):
-            echo(resp.body)
+            quit("Failed creating package... aborting")
     else:
         echo("Package $# exists, skipping..")

@@ -27,6 +27,7 @@ type
         web: string
         license: string
         tags: seq[string]
+        repository: string
 
     License = object
         id: int64
@@ -102,17 +103,15 @@ proc assertFound(row: TRow) =
         raise newException(DbNotFound, "Row not found")
 
 
-
-
-
 proc rowToPackage(row: TRow): Package =
     result = Package(
         id: parseInt($row[0]),
         name: $row[1],
-        web: $row[3],
-        license: $row[4]
+        license: $row[3],
+        web: $row[4],
+        repository: $row[5]
     )
-    if $row[1] != nil:
+    if $row[2] != nil:
         result.description = $row[2]
 
 
@@ -320,9 +319,9 @@ proc populatePackageData(conn: TDBConn, package: var Package) =
 
 
 proc createPackage(conn: TDBConn, package: var Package, owner: User) =
-    let query = db_sqlite.sql("INSERT INTO packages (name, description, license, web) VALUES (?, ?, ?, ?)")
+    let query = db_sqlite.sql("INSERT INTO packages (name, description, license, web, repository) VALUES (?, ?, ?, ?, ?)")
 
-    let id = db_sqlite.insertId(conn, query, package.name, package.description, package.license, package.web, package.web)
+    let id = db_sqlite.insertId(conn, query, package.name, package.description, package.license, package.web, package.repository)
     package.id = id
 
     discard db_sqlite.insertId(conn, db_sqlite.sql("INSERT INTO packages_users (package_id, user_id, kind) VALUES(?, ?, ?)"), $package.id, $owner.id, "admin")
@@ -334,14 +333,15 @@ proc createPackage(conn: TDBConn, package: var Package, owner: User) =
 proc getPackages(conn: TDBConn): seq[Package] =
     result = newSeq[Package]()
 
-    let query = db_sqlite.sql("SELECT id, name, description, license, web FROM packages")
+    let query = db_sqlite.sql("SELECT id, name, description, license, web, repository FROM packages")
 
     for row in db_sqlite.rows(conn, query):
         var package = Package(
             id: parseInt($row[0]),
             name: $row[1],
             license: $row[3],
-            web: $row[4]
+            web: $row[4],
+            repository: $row[5]
         )
 
         if $row[2] != nil:
@@ -353,7 +353,7 @@ proc getPackages(conn: TDBConn): seq[Package] =
 
 proc getPackage(conn: TDBConn, packageId: int = -1, packageName: string = ""): Package =
     var
-        st = "SELECT id, name, description, license, web FROM packages WHERE "
+        st = "SELECT id, name, description, license, web, repository FROM packages WHERE "
         filters = newSeq[string]()
 
     if packageName != nil:
@@ -373,7 +373,8 @@ proc getPackage(conn: TDBConn, packageId: int = -1, packageName: string = ""): P
         id: parseInt($row[0]),
         name: $row[1],
         license: $row[3],
-        web: $row[4]
+        web: $row[4],
+        repository: $row[5]
     )
 
     if $row[2] != nil:
@@ -414,6 +415,7 @@ proc `%`(package: Package): JsonNode =
     result["name"] = %package.name
     result["license"] = %package.license
     result["web"] = %package.web
+    result["repository"] = %package.repository
 
     if package.description != nil:
         result["description"] = %package.description
@@ -431,13 +433,16 @@ proc jsonToPackage(j: JsonNode): Package =
     result = Package(
         name: j["name"].str,
         license: j["license"].str,
-        web: j["web"].str
+        web: j["web"].str,
     )
 
     if j.hasKey("description"):
         result.description = j["description"].str
     else:
         result.description = nil
+
+    if j.hasKey("repository"):
+        result.repository = j["repository"].str
 
     if j.hasKey("tags"):
         var tags = newSeq[string]()
@@ -599,7 +604,7 @@ routes:
     get "/packages":
         var
             packages = newSeq[Package]()
-            statement: string = "SELECT p.id, p.name, p.description, p.license, p.web FROM packages AS p"
+            statement: string = "SELECT p.id, p.name, p.description, p.license, p.web, p.repository FROM packages AS p"
 
             queryKey: string
             queryVal: string
@@ -639,7 +644,7 @@ routes:
         if filters.len >= 1:
             statement &= " WHERE " & join(filters, " OR ")
 
-        echo($statement)
+        statement &= " GROUP BY (p.id)"
         var
             query = sql(statement)
             dbRows = toSeq(rows(db, query))
