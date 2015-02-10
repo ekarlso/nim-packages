@@ -11,3 +11,5 @@ bower_components/
 dist/
 
 api-docs
+
+packages.sqlite
