@@ -23,13 +23,13 @@ nimble install -y
 Run the compiled app
 
 ```
-./src/packages
+./src/nim_pkgs.nim
 ```
 
 You can also run the app by just using *nim*.
 
 ```bash
-nim c --run src/package.nim
+nim c --run src/nim_pkgs.nim
 ```
 
 # Angular App

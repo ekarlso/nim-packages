@@ -5,7 +5,7 @@ author      = "Endre Karlson"
 description = "Package registry for Nim Lang"
 license     = "BSD"
 
-bin = "packages"
+bin = "nim_pkgs"
 srcDir = "src"
 
 [Deps]
