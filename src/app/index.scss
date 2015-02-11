@@ -21,6 +21,16 @@ $body-bg-color: white;
   }
 }
 
+.logo {
+  height: 100%; 
+  width: auto;
+}
+
+.navbar-brand {
+  padding: 10px;
+  line-height: 30px;
+}
+
 body {
   font-family: 'Open Sans', sans-serif;
   background: $body-bg-color;
